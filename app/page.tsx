@@ -53,11 +53,20 @@ export default function Home() {
         setUser(moabomUser);
         setStatus(`환영합니다, ${moabomUser.mb_nick}님!`);
         
-        await getOrCreateUserProfile(
-          moabomUser.mb_id,
-          moabomUser.mb_nick,
-          moabomUser.mb_email
-        );
+        // Supabase 연결 테스트
+        console.log('[Supabase] URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+        console.log('[Supabase] Key exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+        
+        try {
+          const profile = await getOrCreateUserProfile(
+            moabomUser.mb_id,
+            moabomUser.mb_nick,
+            moabomUser.mb_email
+          );
+          console.log('[Supabase] User profile:', profile);
+        } catch (error) {
+          console.error('[Supabase] Profile error:', error);
+        }
 
         const latest = await getLatestMeasurement(moabomUser.mb_id);
         if (latest) {
@@ -170,10 +179,11 @@ export default function Home() {
     if (!user || !currentMeasurements) return;
 
     setStatus("측정 결과 저장 중...");
+    console.log('[Save] Starting save...', { user, currentMeasurements });
 
     const recommendedSize = recommendMaskSize(currentMeasurements);
 
-    const result = await saveMeasurement({
+    const measurementData = {
       user_id: user.mb_id,
       user_name: user.mb_nick,
       nose_width: currentMeasurements.noseWidth,
@@ -186,7 +196,13 @@ export default function Home() {
         ipd_pixels: currentMeasurements.ipdPixels,
         scale_factor: currentMeasurements.scaleFactor,
       },
-    });
+    };
+
+    console.log('[Save] Data to save:', measurementData);
+
+    const result = await saveMeasurement(measurementData);
+
+    console.log('[Save] Result:', result);
 
     if (result.success) {
       setStatus(`측정 완료! 추천 사이즈: ${recommendedSize}`);
@@ -200,7 +216,8 @@ export default function Home() {
 
       stopCamera();
     } else {
-      setStatus("저장 실패. 다시 시도해주세요.");
+      setStatus(`저장 실패: ${result.error?.message || '알 수 없는 오류'}`);
+      console.error('[Save] Error details:', result.error);
     }
   };
 
