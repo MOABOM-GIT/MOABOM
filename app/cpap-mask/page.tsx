@@ -37,6 +37,8 @@ export default function Home() {
 
   // 상태 관리
   const [step, setStep] = useState<MeasurementStep>('IDLE');
+  const stepRef = useRef<MeasurementStep>('IDLE'); // Loop용 Ref
+
   const [status, setStatus] = useState("준비 완료");
   const [subStatus, setSubStatus] = useState("");
   const [user, setUser] = useState<MoabomUser | null>(null);
@@ -45,13 +47,21 @@ export default function Home() {
 
   // 측정 데이터
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
-  const [frontBuffer, setFrontBuffer] = useState<FaceMeasurements[]>([]);
-  const [profileBuffer, setProfileBuffer] = useState<ProfileMeasurements[]>([]);
+
+  // 데이터 버퍼 (Ref로 관리하여 Loop 내 접근 보장)
+  const frontBufferRef = useRef<FaceMeasurements[]>([]);
+  const profileBufferRef = useRef<ProfileMeasurements[]>([]);
+
   const [finalResult, setFinalResult] = useState<{ front: FaceMeasurements, profile: ProfileMeasurements } | null>(null);
   const [fixedScaleFactor, setFixedScaleFactor] = useState<number>(0);
+  const fixedScaleFactorRef = useRef<number>(0);
 
   const animationFrameRef = useRef<number | null>(null);
   const stableFramesRef = useRef(0); // 자세 안정화 프레임 카운터
+
+  // State 동기화
+  useEffect(() => { stepRef.current = step; }, [step]);
+  useEffect(() => { fixedScaleFactorRef.current = fixedScaleFactor; }, [fixedScaleFactor]);
 
   // MediaPipe 초기화
   useEffect(() => {
@@ -106,7 +116,7 @@ export default function Home() {
     initUser();
   }, []);
 
-  // 단계별 로직 처리
+  // 단계별 로직 처리 (useEffect for Countdown)
   useEffect(() => {
     if (step === 'COUNTDOWN') {
       let count = COUNTDOWN_SECONDS;
@@ -117,7 +127,8 @@ export default function Home() {
         if (count === 0) {
           clearInterval(timer);
           setStep('SCANNING_FRONT');
-          setFrontBuffer([]); // 버퍼 초기화
+          // 버퍼 초기화는 Ref로 직접
+          frontBufferRef.current = [];
         }
       }, 1000);
       return () => clearInterval(timer);
@@ -130,6 +141,8 @@ export default function Home() {
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
+
+    // Canvas Context 가져오기 (매 프레임마다 확인)
     const ctx = canvas.getContext('2d');
 
     if (!ctx || video.readyState !== 4) {
@@ -161,20 +174,25 @@ export default function Home() {
       }
     } else {
       // 얼굴 없음 처리
-      if (step === 'GUIDE_CHECK' || step === 'GUIDE_TURN_SIDE') {
+      const currentStep = stepRef.current;
+      if (currentStep === 'GUIDE_CHECK' || currentStep === 'GUIDE_TURN_SIDE') {
         setSubStatus("얼굴을 찾을 수 없습니다");
         stableFramesRef.current = 0;
       }
     }
 
-    if (step !== 'COMPLETE' && step !== 'IDLE') {
+    // 루프 지속 조건 확인 (Ref 사용)
+    const currentStep = stepRef.current;
+    if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE') {
       animationFrameRef.current = requestAnimationFrame(detectFace);
     }
-  }, [faceLandmarker, step, fixedScaleFactor]); // fixedScaleFactor 의존성 추가
+  }, [faceLandmarker]); // 의존성을 최소화 (Refs 사용)
 
   // 단계별 처리 로직
   const processStep = (measurements: FaceMeasurements, yaw: number, landmarks: any[]) => {
-    switch (step) {
+    const currentStep = stepRef.current;
+
+    switch (currentStep) {
       case 'GUIDE_CHECK':
         // 정면 응시 확인 (Yaw가 0에 가까워야 함)
         if (Math.abs(yaw) < YAW_THRESHOLD_FRONT) {
@@ -184,7 +202,11 @@ export default function Home() {
           if (stableFramesRef.current > 20) { // 약 0.6초 유지
             setStatus("측정을 시작합니다");
             setSubStatus("");
+
+            // State Update
             setStep('COUNTDOWN');
+            // Ref Update (즉시 반영을 위해)
+            stepRef.current = 'COUNTDOWN';
           }
         } else {
           stableFramesRef.current = 0;
@@ -194,18 +216,20 @@ export default function Home() {
 
       case 'SCANNING_FRONT':
         // 정면 데이터 수집
-        setFrontBuffer(prev => [...prev, measurements]);
-        setStatus("정면 스캔 중...");
-        setSubStatus(`${frontBuffer.length} / ${SCAN_FRAMES}`);
+        frontBufferRef.current.push(measurements);
 
-        if (frontBuffer.length >= SCAN_FRAMES) {
+        setStatus("정면 스캔 중...");
+        setSubStatus(`${frontBufferRef.current.length} / ${SCAN_FRAMES}`);
+
+        if (frontBufferRef.current.length >= SCAN_FRAMES) {
           // 정면 스캔 완료 시 스케일 팩터 고정
-          // 마지막 프레임보다는 평균을 사용하는 것이 좋으나, 여기서는 마지막 누적 버퍼의 평균을 계산
-          const currentBuffer = [...frontBuffer, measurements];
-          const avgScale = currentBuffer.reduce((acc, cur) => acc + cur.scaleFactor, 0) / currentBuffer.length;
+          const avgScale = frontBufferRef.current.reduce((acc, cur) => acc + cur.scaleFactor, 0) / frontBufferRef.current.length;
           setFixedScaleFactor(avgScale);
+          fixedScaleFactorRef.current = avgScale; // Sync Ref
 
           setStep('GUIDE_TURN_SIDE');
+          stepRef.current = 'GUIDE_TURN_SIDE';
+
           setStatus("측면 측정");
           setSubStatus("고개를 천천히 옆으로 돌려주세요");
           stableFramesRef.current = 0;
@@ -219,7 +243,8 @@ export default function Home() {
 
           if (stableFramesRef.current > 10) {
             setStep('SCANNING_PROFILE');
-            setProfileBuffer([]); // 초기화
+            stepRef.current = 'SCANNING_PROFILE';
+            profileBufferRef.current = []; // 초기화
           }
         } else {
           stableFramesRef.current = 0; // 다시 돌아오면 리셋
@@ -227,13 +252,14 @@ export default function Home() {
         break;
 
       case 'SCANNING_PROFILE':
-        // 측면 데이터 수집 - 고정된 스케일 팩터 사용
-        const profileData = performProfileMeasurement(landmarks, fixedScaleFactor);
-        setProfileBuffer(prev => [...prev, profileData]);
-        setStatus("측면 스캔 중...");
-        setSubStatus(`${profileBuffer.length} / ${SCAN_FRAMES}`);
+        // 측면 데이터 수집 - 고정된 스케일 팩터 사용 (Ref)
+        const profileData = performProfileMeasurement(landmarks, fixedScaleFactorRef.current);
+        profileBufferRef.current.push(profileData);
 
-        if (profileBuffer.length >= SCAN_FRAMES) {
+        setStatus("측면 스캔 중...");
+        setSubStatus(`${profileBufferRef.current.length} / ${SCAN_FRAMES}`);
+
+        if (profileBufferRef.current.length >= SCAN_FRAMES) {
           finishMeasurement();
         }
         break;
@@ -243,8 +269,8 @@ export default function Home() {
   // 측정 완료 및 결과 처리
   const finishMeasurement = () => {
     // 평균값 계산
-    const avgFront = calculateAverageFront(frontBuffer);
-    const avgProfile = calculateAverageProfile(profileBuffer);
+    const avgFront = calculateAverageFront(frontBufferRef.current);
+    const avgProfile = calculateAverageProfile(profileBufferRef.current);
 
     setFinalResult({
       front: avgFront,
@@ -368,8 +394,8 @@ export default function Home() {
 
   const handleRetry = () => {
     setFinalResult(null);
-    setFrontBuffer([]);
-    setProfileBuffer([]);
+    frontBufferRef.current = [];
+    profileBufferRef.current = [];
     startCamera();
   };
 
@@ -469,7 +495,7 @@ export default function Home() {
               <div
                 className="h-full bg-cyan-500 transition-all duration-100"
                 style={{
-                  width: `${((step === 'SCANNING_FRONT' ? frontBuffer.length : profileBuffer.length) / SCAN_FRAMES) * 100}%`
+                  width: `${((step === 'SCANNING_FRONT' ? frontBufferRef.current.length : profileBufferRef.current.length) / SCAN_FRAMES) * 100}%`
                 }}
               />
             </div>
