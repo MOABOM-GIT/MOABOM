@@ -1,12 +1,31 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
+import { getMoabomUser, type MoabomUser } from "@/lib/moabom-auth";
 
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState("준비 완료");
+  const [user, setUser] = useState<MoabomUser | null>(null);
+
+  // 컴포넌트 마운트 시 사용자 정보 가져오기
+  useEffect(() => {
+    const moabomUser = getMoabomUser();
+    if (moabomUser) {
+      setUser(moabomUser);
+      setStatus(`환영합니다, ${moabomUser.mb_nick}님!`);
+      console.log('[MoabomAuth] User info:', moabomUser);
+    } else {
+      setStatus("로그인이 필요합니다");
+    }
+  }, []);
 
   const startCamera = async () => {
+    if (!user) {
+      setStatus("에러: 로그인이 필요합니다");
+      return;
+    }
+
     setStatus("카메라 연결 중...");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -29,6 +48,12 @@ export default function Home() {
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tighter text-blue-600">MOABOM AI Vision</h1>
           <p className="text-zinc-500 dark:text-zinc-400">{status}</p>
+          {user && (
+            <div className="text-sm text-zinc-600 dark:text-zinc-300">
+              <p>사용자: {user.mb_nick} ({user.mb_id})</p>
+              <p className="text-xs text-zinc-400">레벨: {user.mb_level}</p>
+            </div>
+          )}
         </div>
 
         {/* 비디오 화면 공간 */}
@@ -48,7 +73,8 @@ export default function Home() {
         {/* 컨트롤 버튼 */}
         <button
           onClick={startCamera}
-          className="w-full rounded-xl bg-blue-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95"
+          disabled={!user}
+          className="w-full rounded-xl bg-blue-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           측정 시작하기
         </button>
