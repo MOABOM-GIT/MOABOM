@@ -297,14 +297,14 @@ export function drawLandmarks(
   ctx.textAlign = 'center';
   ctx.fillText('얼굴을 가이드 안에 맞춰주세요', faceCenter.x, faceCenter.y - guideH - 20);
 
-  // 2. 모든 랜드마크를 작은 흰색 반투명 점으로 표시
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+  // 2. 모든 랜드마크를 작은 흰색 반투명 점으로 표시 (크기와 진하기 증가)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
   landmarks.forEach((landmark) => {
     const x = landmark.x * width;
     const y = landmark.y * height;
 
     ctx.beginPath();
-    ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
+    ctx.arc(x, y, 2.5, 0, 2 * Math.PI);
     ctx.fill();
   });
 

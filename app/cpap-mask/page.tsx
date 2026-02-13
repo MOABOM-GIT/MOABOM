@@ -432,7 +432,7 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-black">
-      <div className="relative w-full h-screen max-w-md mx-auto bg-gray-900 shadow-2xl overflow-hidden">
+      <div className="relative w-full h-screen bg-gray-900 shadow-2xl overflow-hidden">
         {/* 비디오 & 캔버스 */}
         <video
           ref={videoRef}
