@@ -215,56 +215,56 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 dark:from-zinc-900 dark:to-zinc-950">
-      <div className="w-full max-w-2xl space-y-6">
-        {/* 헤더 */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold tracking-tighter bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            MOABOM AI Vision
-          </h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{status}</p>
-          {user && (
-            <div className="text-xs text-zinc-500">
-              {user.mb_nick} ({user.mb_id})
-            </div>
-          )}
-        </div>
-
-        {/* 비디오 + 캔버스 */}
-        <div className="relative aspect-video overflow-hidden rounded-2xl border-4 border-blue-500 bg-black shadow-2xl">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ transform: 'scaleX(-1)' }}
-          />
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 w-full h-full"
-            style={{ transform: 'scaleX(-1)' }}
-          />
-          
-          {/* 측정 정보 오버레이 */}
-          {currentMeasurements && (
-            <div className="absolute top-4 left-4 bg-black/70 text-white p-3 rounded-lg text-xs space-y-1">
-              <div>코 너비: <span className="font-bold">{currentMeasurements.noseWidth}mm</span></div>
-              <div>얼굴 길이: <span className="font-bold">{currentMeasurements.faceLength}mm</span></div>
-              <div>턱 각도: <span className="font-bold">{currentMeasurements.chinAngle}°</span></div>
-              <div className="pt-2 border-t border-white/30">
-                추천: <span className="font-bold text-green-400">{recommendMaskSize(currentMeasurements)} 사이즈</span>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-black">
+      {/* 전체화면 비디오 + 캔버스 */}
+      <div className="relative w-full h-screen">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ transform: 'scaleX(-1)' }}
+        />
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full"
+          style={{ transform: 'scaleX(-1)' }}
+        />
+        
+        {/* 상단 헤더 오버레이 */}
+        <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/70 to-transparent">
+          <div className="text-center space-y-1">
+            <h1 className="text-2xl md:text-4xl font-bold tracking-tighter bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+              smartcare360 AI Vision
+            </h1>
+            <p className="text-xs md:text-sm text-white/90">{status}</p>
+            {user && (
+              <div className="text-xs text-white/70">
+                {user.mb_nick} ({user.mb_id})
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+        
+        {/* 측정 정보 오버레이 */}
+        {currentMeasurements && (
+          <div className="absolute top-20 left-4 bg-black/70 backdrop-blur-sm text-white p-3 rounded-lg text-xs space-y-1 border border-cyan-500/30">
+            <div>코 너비: <span className="font-bold text-cyan-400">{currentMeasurements.noseWidth}mm</span></div>
+            <div>얼굴 길이: <span className="font-bold text-cyan-400">{currentMeasurements.faceLength}mm</span></div>
+            <div>턱 각도: <span className="font-bold text-cyan-400">{currentMeasurements.chinAngle}°</span></div>
+            <div className="pt-2 border-t border-cyan-500/30">
+              추천: <span className="font-bold text-green-400">{recommendMaskSize(currentMeasurements)} 사이즈</span>
+            </div>
+          </div>
+        )}
 
         {/* 최근 측정 결과 */}
         {latestMeasurement && !isMeasuring && (
-          <div className="p-4 bg-white dark:bg-zinc-800 rounded-xl shadow-lg">
-            <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">최근 측정 결과</h3>
+          <div className="absolute top-20 left-4 right-4 md:left-4 md:right-auto md:w-80 bg-black/70 backdrop-blur-sm text-white p-4 rounded-xl border border-white/20">
+            <h3 className="text-sm font-semibold mb-2">최근 측정 결과</h3>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div>추천 사이즈: <span className="font-bold text-blue-600">{latestMeasurement.recommended_size}</span></div>
+              <div>추천 사이즈: <span className="font-bold text-cyan-400">{latestMeasurement.recommended_size}</span></div>
               <div>코 너비: {latestMeasurement.nose_width}mm</div>
               <div>얼굴 길이: {latestMeasurement.face_length}mm</div>
               <div>측정일: {new Date(latestMeasurement.created_at!).toLocaleDateString('ko-KR')}</div>
@@ -272,38 +272,40 @@ export default function Home() {
           </div>
         )}
 
-        {/* 컨트롤 버튼 */}
-        <div className="flex gap-3">
-          {!isMeasuring ? (
-            <button
-              onClick={startCamera}
-              disabled={!user || !faceLandmarker}
-              className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-            >
-              {faceLandmarker ? "측정 시작" : "로딩 중..."}
-            </button>
-          ) : (
-            <>
+        {/* 하단 컨트롤 버튼 오버레이 */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-t from-black/70 to-transparent">
+          <div className="flex gap-3 max-w-2xl mx-auto">
+            {!isMeasuring ? (
               <button
-                onClick={saveMeasurementResult}
-                disabled={!currentMeasurements}
-                className="flex-1 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 shadow-lg"
+                onClick={startCamera}
+                disabled={!user || !faceLandmarker}
+                className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
               >
-                결과 저장
+                {faceLandmarker ? "측정 시작" : "로딩 중..."}
               </button>
-              <button
-                onClick={stopCamera}
-                className="flex-1 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 shadow-lg"
-              >
-                중지
-              </button>
-            </>
-          )}
+            ) : (
+              <>
+                <button
+                  onClick={saveMeasurementResult}
+                  disabled={!currentMeasurements}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 shadow-lg"
+                >
+                  결과 저장
+                </button>
+                <button
+                  onClick={stopCamera}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 shadow-lg"
+                >
+                  중지
+                </button>
+              </>
+            )}
+          </div>
+          
+          <p className="text-xs text-center text-white/60 mt-3">
+            3D 안면 분석을 통해 최적의 양압기 마스크를 추천합니다
+          </p>
         </div>
-
-        <p className="text-xs text-center text-zinc-500">
-          3D 안면 분석을 통해 최적의 양압기 마스크를 추천합니다
-        </p>
       </div>
     </div>
   );

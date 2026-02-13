@@ -12,6 +12,14 @@ export const LANDMARKS = {
   LEFT_EYE_OUTER: 33,
   RIGHT_EYE_INNER: 362,
   RIGHT_EYE_OUTER: 263,
+  LEFT_EYE_TOP: 159,
+  LEFT_EYE_BOTTOM: 145,
+  RIGHT_EYE_TOP: 386,
+  RIGHT_EYE_BOTTOM: 374,
+  
+  // 동공
+  LEFT_PUPIL: 468,
+  RIGHT_PUPIL: 473,
   
   // 코
   NOSE_TIP: 1,
@@ -26,10 +34,18 @@ export const LANDMARKS = {
   FACE_LEFT: 234,
   FACE_RIGHT: 454,
   
+  // 광대뼈
+  CHEEK_LEFT: 205,
+  CHEEK_RIGHT: 425,
+  
   // 턱
   CHIN: 152,
   JAW_LEFT: 172,
   JAW_RIGHT: 397,
+  
+  // 귀 (근사값)
+  EAR_LEFT: 234,
+  EAR_RIGHT: 454,
 };
 
 // 평균 IPD (눈동자 간 거리) - mm 단위
@@ -187,7 +203,7 @@ export function drawLandmarks(
   ctx.lineWidth = 1;
   
   // 모든 랜드마크 점 그리기
-  landmarks.forEach((landmark, index) => {
+  landmarks.forEach((landmark) => {
     const x = landmark.x * width;
     const y = landmark.y * height;
     
@@ -196,11 +212,35 @@ export function drawLandmarks(
     ctx.fill();
   });
   
-  // 주요 측정 라인 그리기 (더 밝게)
+  // 주요 측정 라인 그리기 (밝은 청록색)
   ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
   ctx.lineWidth = 2;
   
-  // 코 너비 선
+  // 1. 눈동자 간 거리 (IPD) - 가장 중요
+  const leftPupil = landmarks[LANDMARKS.LEFT_PUPIL];
+  const rightPupil = landmarks[LANDMARKS.RIGHT_PUPIL];
+  ctx.beginPath();
+  ctx.moveTo(leftPupil.x * width, leftPupil.y * height);
+  ctx.lineTo(rightPupil.x * width, rightPupil.y * height);
+  ctx.stroke();
+  
+  // 2. 왼쪽 눈 윤곽
+  const leftEyeInner = landmarks[LANDMARKS.LEFT_EYE_INNER];
+  const leftEyeOuter = landmarks[LANDMARKS.LEFT_EYE_OUTER];
+  ctx.beginPath();
+  ctx.moveTo(leftEyeInner.x * width, leftEyeInner.y * height);
+  ctx.lineTo(leftEyeOuter.x * width, leftEyeOuter.y * height);
+  ctx.stroke();
+  
+  // 3. 오른쪽 눈 윤곽
+  const rightEyeInner = landmarks[LANDMARKS.RIGHT_EYE_INNER];
+  const rightEyeOuter = landmarks[LANDMARKS.RIGHT_EYE_OUTER];
+  ctx.beginPath();
+  ctx.moveTo(rightEyeInner.x * width, rightEyeInner.y * height);
+  ctx.lineTo(rightEyeOuter.x * width, rightEyeOuter.y * height);
+  ctx.stroke();
+  
+  // 4. 코 너비
   const noseLeft = landmarks[LANDMARKS.NOSE_LEFT];
   const noseRight = landmarks[LANDMARKS.NOSE_RIGHT];
   ctx.beginPath();
@@ -208,7 +248,7 @@ export function drawLandmarks(
   ctx.lineTo(noseRight.x * width, noseRight.y * height);
   ctx.stroke();
   
-  // 얼굴 길이 선
+  // 5. 얼굴 길이 (세로)
   const faceTop = landmarks[LANDMARKS.FACE_TOP];
   const chin = landmarks[LANDMARKS.CHIN];
   ctx.beginPath();
@@ -216,14 +256,34 @@ export function drawLandmarks(
   ctx.lineTo(chin.x * width, chin.y * height);
   ctx.stroke();
   
+  // 6. 광대뼈 너비
+  const cheekLeft = landmarks[LANDMARKS.CHEEK_LEFT];
+  const cheekRight = landmarks[LANDMARKS.CHEEK_RIGHT];
+  ctx.beginPath();
+  ctx.moveTo(cheekLeft.x * width, cheekLeft.y * height);
+  ctx.lineTo(cheekRight.x * width, cheekRight.y * height);
+  ctx.stroke();
+  
+  // 7. 얼굴 너비 (귀 근처)
+  const faceLeft = landmarks[LANDMARKS.FACE_LEFT];
+  const faceRight = landmarks[LANDMARKS.FACE_RIGHT];
+  ctx.beginPath();
+  ctx.moveTo(faceLeft.x * width, faceLeft.y * height);
+  ctx.lineTo(faceRight.x * width, faceRight.y * height);
+  ctx.stroke();
+  
   // 주요 포인트 강조 (더 크고 밝게)
   ctx.fillStyle = 'rgba(0, 255, 255, 0.9)';
   const keyPoints = [
+    LANDMARKS.LEFT_PUPIL,
+    LANDMARKS.RIGHT_PUPIL,
     LANDMARKS.NOSE_LEFT,
     LANDMARKS.NOSE_RIGHT,
     LANDMARKS.NOSE_TIP,
     LANDMARKS.FACE_TOP,
     LANDMARKS.CHIN,
+    LANDMARKS.CHEEK_LEFT,
+    LANDMARKS.CHEEK_RIGHT,
   ];
   
   keyPoints.forEach(index => {
