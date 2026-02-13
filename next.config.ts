@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: "frame-ancestors 'self' *",
           },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=*, microphone=*, fullscreen=*',
+          },
         ],
       },
     ];

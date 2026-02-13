@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import { getMoabomUser, type MoabomUser } from "@/lib/moabom-auth";
 import { getOrCreateUserProfile, saveMeasurement, getLatestMeasurement, type MeasureLog } from "@/lib/supabase";
-import { FaceLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
+import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { performMeasurement, recommendMaskSize, drawLandmarks, type FaceMeasurements } from "@/lib/face-measurement";
 
 export default function Home() {
@@ -35,7 +35,6 @@ export default function Home() {
         });
         
         setFaceLandmarker(landmarker);
-        console.log('[MediaPipe] Face Landmarker initialized');
       } catch (error) {
         console.error('[MediaPipe] Initialization error:', error);
         setStatus("에러: MediaPipe 초기화 실패");
@@ -53,20 +52,11 @@ export default function Home() {
         setUser(moabomUser);
         setStatus(`환영합니다, ${moabomUser.mb_nick}님!`);
         
-        // Supabase 연결 테스트
-        console.log('[Supabase] URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-        console.log('[Supabase] Key exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-        
-        try {
-          const profile = await getOrCreateUserProfile(
-            moabomUser.mb_id,
-            moabomUser.mb_nick,
-            moabomUser.mb_email
-          );
-          console.log('[Supabase] User profile:', profile);
-        } catch (error) {
-          console.error('[Supabase] Profile error:', error);
-        }
+        const profile = await getOrCreateUserProfile(
+          moabomUser.mb_id,
+          moabomUser.mb_nick,
+          moabomUser.mb_email
+        );
 
         const latest = await getLatestMeasurement(moabomUser.mb_id);
         if (latest) {
@@ -83,7 +73,6 @@ export default function Home() {
   // isMeasuring이 true가 되면 detectFace 시작
   useEffect(() => {
     if (isMeasuring && faceLandmarker && videoRef.current) {
-      console.log('[UseEffect] Starting detectFace loop because isMeasuring is now true');
       detectFace();
     }
   }, [isMeasuring, faceLandmarker]);
@@ -91,12 +80,6 @@ export default function Home() {
   // 실시간 얼굴 감지 및 측정
   const detectFace = async () => {
     if (!videoRef.current || !canvasRef.current || !faceLandmarker || !isMeasuring) {
-      console.log('[DetectFace] Skipped:', { 
-        hasVideo: !!videoRef.current, 
-        hasCanvas: !!canvasRef.current, 
-        hasFaceLandmarker: !!faceLandmarker, 
-        isMeasuring 
-      });
       return;
     }
 
@@ -105,7 +88,6 @@ export default function Home() {
     const ctx = canvas.getContext('2d');
 
     if (!ctx || video.readyState !== 4) {
-      console.log('[DetectFace] Video not ready:', { hasCtx: !!ctx, readyState: video.readyState });
       animationFrameRef.current = requestAnimationFrame(detectFace);
       return;
     }
@@ -113,28 +95,20 @@ export default function Home() {
     // 캔버스 크기 설정
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    console.log('[DetectFace] Canvas size:', canvas.width, 'x', canvas.height);
 
     // 비디오 프레임 분석
     const startTimeMs = performance.now();
     const results = faceLandmarker.detectForVideo(video, startTimeMs);
-    console.log('[DetectFace] Results:', { 
-      hasFaceLandmarks: !!results.faceLandmarks, 
-      count: results.faceLandmarks?.length || 0 
-    });
 
     // 캔버스 클리어
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-      console.log('[DetectFace] Face detected! Drawing landmarks...');
-      
       // 랜드마크 그리기
       drawLandmarks(ctx, results.faceLandmarks[0], canvas.width, canvas.height);
 
       // 측정 수행
       const measurements = performMeasurement(results);
-      console.log('[DetectFace] Measurements:', measurements);
       
       if (measurements) {
         setCurrentMeasurements(measurements);
@@ -148,14 +122,6 @@ export default function Home() {
   };
 
   const startCamera = async () => {
-    console.log('[StartCamera] Button clicked');
-    console.log('[StartCamera] State:', { 
-      hasUser: !!user, 
-      hasFaceLandmarker: !!faceLandmarker,
-      user,
-      faceLandmarker 
-    });
-
     if (!user) {
       setStatus("에러: 로그인이 필요합니다");
       return;
@@ -167,7 +133,6 @@ export default function Home() {
     }
 
     setStatus("카메라 연결 중...");
-    console.log('[StartCamera] Requesting camera access...');
     
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -178,20 +143,16 @@ export default function Home() {
         } 
       });
       
-      console.log('[StartCamera] Camera access granted');
-      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
-          console.log('[StartCamera] Video metadata loaded');
           videoRef.current?.play();
-          console.log('[StartCamera] Setting isMeasuring to true');
           setIsMeasuring(true);
           setStatus("얼굴을 정면으로 봐주세요");
         };
       }
     } catch (err) {
-      console.error("[StartCamera] Camera access error:", err);
+      console.error("카메라 접근 에러:", err);
       setStatus("에러: 카메라 권한을 허용해주세요.");
     }
   };
@@ -213,21 +174,9 @@ export default function Home() {
   };
 
   const saveMeasurementResult = async () => {
-    console.log('[Save] Button clicked');
-    console.log('[Save] Current state:', { 
-      hasUser: !!user, 
-      hasMeasurements: !!currentMeasurements,
-      user,
-      currentMeasurements 
-    });
-
-    if (!user || !currentMeasurements) {
-      console.log('[Save] Missing user or measurements, aborting');
-      return;
-    }
+    if (!user || !currentMeasurements) return;
 
     setStatus("측정 결과 저장 중...");
-    console.log('[Save] Starting save...', { user, currentMeasurements });
 
     const recommendedSize = recommendMaskSize(currentMeasurements);
 
@@ -246,11 +195,7 @@ export default function Home() {
       },
     };
 
-    console.log('[Save] Data to save:', measurementData);
-
     const result = await saveMeasurement(measurementData);
-
-    console.log('[Save] Result:', result);
 
     if (result.success) {
       setStatus(`측정 완료! 추천 사이즈: ${recommendedSize}`);
@@ -265,7 +210,7 @@ export default function Home() {
       stopCamera();
     } else {
       setStatus(`저장 실패: ${result.error?.message || '알 수 없는 오류'}`);
-      console.error('[Save] Error details:', result.error);
+      console.error('[Save] Error:', result.error);
     }
   };
 

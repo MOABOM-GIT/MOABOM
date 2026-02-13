@@ -32,7 +32,7 @@ export interface MeasureLog {
 export async function getOrCreateUserProfile(userId: string, userName: string, userEmail?: string): Promise<UserProfile | null> {
   try {
     // 기존 프로필 확인
-    const { data: existing, error: fetchError } = await supabase
+    const { data: existing } = await supabase
       .from('users_profile')
       .select('*')
       .eq('user_id', userId)
