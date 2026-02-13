@@ -140,6 +140,14 @@ export default function Home() {
   };
 
   const startCamera = async () => {
+    console.log('[StartCamera] Button clicked');
+    console.log('[StartCamera] State:', { 
+      hasUser: !!user, 
+      hasFaceLandmarker: !!faceLandmarker,
+      user,
+      faceLandmarker 
+    });
+
     if (!user) {
       setStatus("에러: 로그인이 필요합니다");
       return;
@@ -151,6 +159,8 @@ export default function Home() {
     }
 
     setStatus("카메라 연결 중...");
+    console.log('[StartCamera] Requesting camera access...');
+    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
@@ -160,17 +170,21 @@ export default function Home() {
         } 
       });
       
+      console.log('[StartCamera] Camera access granted');
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
+          console.log('[StartCamera] Video metadata loaded');
           videoRef.current?.play();
           setIsMeasuring(true);
           setStatus("얼굴을 정면으로 봐주세요");
+          console.log('[StartCamera] Starting detectFace loop...');
           detectFace();
         };
       }
     } catch (err) {
-      console.error("카메라 접근 에러:", err);
+      console.error("[StartCamera] Camera access error:", err);
       setStatus("에러: 카메라 권한을 허용해주세요.");
     }
   };
