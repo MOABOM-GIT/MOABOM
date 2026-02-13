@@ -180,12 +180,16 @@ export default function Home() {
         if (currentStep === 'GUIDE_CHECK' || currentStep === 'GUIDE_TURN_SIDE') {
           setSubStatus("얼굴을 찾을 수 없습니다");
           stableFramesRef.current = 0;
+        } else if (currentStep === 'SCANNING_FRONT' || currentStep === 'SCANNING_PROFILE') {
+          // 스캔 중 얼굴을 못 찾으면 버퍼 클리어
+          setSubStatus("얼굴을 다시 찾아주세요");
+          stableFramesRef.current = 0;
         }
       }
 
       // 루프 지속 조건 확인 (Ref 사용)
       const currentStep = stepRef.current;
-      if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE' && currentStep !== 'COUNTDOWN') {
+      if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE') {
         animationFrameRef.current = requestAnimationFrame(detectFace);
       } else if (currentStep === 'COMPLETE') {
         animationFrameRef.current = null;
