@@ -80,6 +80,14 @@ export default function Home() {
     initUser();
   }, []);
 
+  // isMeasuring이 true가 되면 detectFace 시작
+  useEffect(() => {
+    if (isMeasuring && faceLandmarker && videoRef.current) {
+      console.log('[UseEffect] Starting detectFace loop because isMeasuring is now true');
+      detectFace();
+    }
+  }, [isMeasuring, faceLandmarker]);
+
   // 실시간 얼굴 감지 및 측정
   const detectFace = async () => {
     if (!videoRef.current || !canvasRef.current || !faceLandmarker || !isMeasuring) {
@@ -180,12 +188,6 @@ export default function Home() {
           console.log('[StartCamera] Setting isMeasuring to true');
           setIsMeasuring(true);
           setStatus("얼굴을 정면으로 봐주세요");
-          console.log('[StartCamera] Starting detectFace loop...');
-          // isMeasuring 상태가 업데이트된 후 detectFace 호출
-          setTimeout(() => {
-            console.log('[StartCamera] Calling detectFace after state update');
-            detectFace();
-          }, 100);
         };
       }
     } catch (err) {
