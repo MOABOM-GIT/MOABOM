@@ -15,7 +15,7 @@ export default function Home() {
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [faceLandmarker, setFaceLandmarker] = useState<FaceLandmarker | null>(null);
   const [currentMeasurements, setCurrentMeasurements] = useState<FaceMeasurements | null>(null);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | null>(null);
 
   // MediaPipe 초기화
   useEffect(() => {
