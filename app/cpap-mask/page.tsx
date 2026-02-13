@@ -60,10 +60,22 @@ export default function Home() {
 
   const animationFrameRef = useRef<number | null>(null);
   const stableFramesRef = useRef(0); // 자세 안정화 프레임 카운터
+  const lastTimestampRef = useRef<number>(0); // MediaPipe VIDEO 모드: 단조 증가 타임스탬프
 
   // State 동기화
   useEffect(() => { stepRef.current = step; }, [step]);
   useEffect(() => { fixedScaleFactorRef.current = fixedScaleFactor; }, [fixedScaleFactor]);
+
+  // TensorFlow Lite 콘솔 로그 억제 (XNNPACK delegate 등)
+  useEffect(() => {
+    const origInfo = console.info;
+    console.info = (...args: unknown[]) => {
+      const msg = String(args[0] ?? "");
+      if (msg.includes("TensorFlow Lite") || msg.includes("XNNPACK") || msg.includes("delegate")) return;
+      origInfo.apply(console, args);
+    };
+    return () => { console.info = origInfo; };
+  }, []);
 
   // MediaPipe 초기화
   useEffect(() => {
@@ -158,9 +170,13 @@ export default function Home() {
       canvas.height = video.videoHeight;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 얼굴 감지
-      const startTimeMs = performance.now();
-      const results = faceLandmarker.detectForVideo(video, startTimeMs);
+      // VIDEO 모드: 타임스탬프는 반드시 단조 증가 (ms). 비디오 시간 기반으로 보정
+      const now = performance.now();
+      const videoTimeMs = video.currentTime * 1000;
+      const timestampMs = Math.max(lastTimestampRef.current + 1, now, videoTimeMs);
+      lastTimestampRef.current = timestampMs;
+
+      const results = faceLandmarker.detectForVideo(video, timestampMs);
 
       if (results.faceLandmarks && results.faceLandmarks.length > 0) {
         const landmarks = results.faceLandmarks[0];
@@ -189,10 +205,17 @@ export default function Home() {
         }
       }
 
-      // 루프 지속 조건 확인 (Ref 사용)
+      // 루프 지속: 새 비디오 프레임 시점에 맞춰 실행 (메시 멈춤 방지)
       const currentStep = stepRef.current;
       if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE') {
-        animationFrameRef.current = requestAnimationFrame(detectFace);
+        const scheduleNext = () => {
+          animationFrameRef.current = requestAnimationFrame(detectFace);
+        };
+        if (typeof (video as unknown as { requestVideoFrameCallback?: (cb: () => void) => number }).requestVideoFrameCallback === 'function') {
+          (video as unknown as { requestVideoFrameCallback: (cb: () => void) => number }).requestVideoFrameCallback(scheduleNext);
+        } else {
+          animationFrameRef.current = requestAnimationFrame(detectFace);
+        }
       } else if (currentStep === 'COMPLETE') {
         animationFrameRef.current = null;
       }
@@ -402,12 +425,21 @@ export default function Home() {
       });
 
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play();
+        const video = videoRef.current;
+        video.srcObject = stream;
+        video.onloadedmetadata = async () => {
+          try {
+            await video.play();
+          } catch (playErr) {
+            console.error("Video play failed:", playErr);
+            setCameraStarting(false);
+            setStatus("영상 재생을 허용해 주세요 (자동재생 차단)");
+            return;
+          }
           setCameraStarting(false);
           setStep('GUIDE_CHECK');
           setStatus("카메라를 정면으로 봐주세요");
+          lastTimestampRef.current = 0;
           requestAnimationFrame(detectFace);
         };
       }
