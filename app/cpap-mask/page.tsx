@@ -52,7 +52,7 @@ export default function Home() {
         setUser(moabomUser);
         setStatus(`환영합니다, ${moabomUser.mb_nick}님!`);
         
-        const profile = await getOrCreateUserProfile(
+        await getOrCreateUserProfile(
           moabomUser.mb_id,
           moabomUser.mb_nick,
           moabomUser.mb_email
@@ -151,9 +151,9 @@ export default function Home() {
           setStatus("얼굴을 정면으로 봐주세요");
         };
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("카메라 접근 에러:", err);
-      setStatus("에러: 카메라 권한을 허용해주세요.");
+      setStatus(`에러: 카메라 권한을 허용해주세요. (${err.name})`);
     }
   };
 
@@ -220,7 +220,7 @@ export default function Home() {
         {/* 헤더 */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold tracking-tighter bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            smartcare360 AI Vision
+            MOABOM AI Vision
           </h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">{status}</p>
           {user && (
@@ -238,10 +238,12 @@ export default function Home() {
             playsInline
             muted
             className="absolute inset-0 w-full h-full object-cover"
+            style={{ transform: 'scaleX(-1)' }}
           />
           <canvas
             ref={canvasRef}
             className="absolute inset-0 w-full h-full"
+            style={{ transform: 'scaleX(-1)' }}
           />
           
           {/* 측정 정보 오버레이 */}
@@ -271,58 +273,32 @@ export default function Home() {
         )}
 
         {/* 컨트롤 버튼 */}
-        <div className="space-y-3">
-          {/* 모바일 안내 메시지 */}
-          {typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) && !isMeasuring && (
-            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-200">
-              <div className="flex items-start gap-2">
-                <span className="text-lg">⚠️</span>
-                <div>
-                  <div className="font-semibold mb-1">모바일 사용자 안내</div>
-                  <div>일부 모바일 브라우저에서는 iframe 내 카메라 접근이 제한될 수 있습니다. 카메라 권한 오류가 발생하면 아래 "새 탭에서 열기" 버튼을 사용해주세요.</div>
-                </div>
-              </div>
-            </div>
+        <div className="flex gap-3">
+          {!isMeasuring ? (
+            <button
+              onClick={startCamera}
+              disabled={!user || !faceLandmarker}
+              className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+            >
+              {faceLandmarker ? "측정 시작" : "로딩 중..."}
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={saveMeasurementResult}
+                disabled={!currentMeasurements}
+                className="flex-1 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 shadow-lg"
+              >
+                결과 저장
+              </button>
+              <button
+                onClick={stopCamera}
+                className="flex-1 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 shadow-lg"
+              >
+                중지
+              </button>
+            </>
           )}
-
-          <div className="flex gap-3">
-            {!isMeasuring ? (
-              <>
-                <button
-                  onClick={startCamera}
-                  disabled={!user || !faceLandmarker}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                >
-                  {faceLandmarker ? "측정 시작" : "로딩 중..."}
-                </button>
-                
-                {/* 새 탭에서 열기 버튼 */}
-                <button
-                  onClick={() => window.open(window.location.href, '_blank')}
-                  className="rounded-xl bg-gradient-to-r from-zinc-600 to-zinc-700 px-6 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 shadow-lg whitespace-nowrap"
-                  title="새 탭에서 열기 (모바일 권장)"
-                >
-                  <i className="ri-external-link-line"></i>
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={saveMeasurementResult}
-                  disabled={!currentMeasurements}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 shadow-lg"
-                >
-                  결과 저장
-                </button>
-                <button
-                  onClick={stopCamera}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 shadow-lg"
-                >
-                  중지
-                </button>
-              </>
-            )}
-          </div>
         </div>
 
         <p className="text-xs text-center text-zinc-500">
