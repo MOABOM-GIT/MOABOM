@@ -197,26 +197,44 @@ export function drawLandmarks(
   width: number,
   height: number
 ) {
-  // 모든 랜드마크를 작은 흰색 반투명 점으로 표시
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-  ctx.lineWidth = 1;
+  // 1. 얼굴 가이드 오버레이 (타원형)
+  const faceCenter = {
+    x: width / 2,
+    y: height / 2
+  };
+  const guideWidth = width * 0.35;
+  const guideHeight = height * 0.5;
   
-  // 모든 랜드마크 점 그리기
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 5]);
+  ctx.beginPath();
+  ctx.ellipse(faceCenter.x, faceCenter.y, guideWidth, guideHeight, 0, 0, 2 * Math.PI);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  
+  // 가이드 텍스트
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.font = '14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('얼굴을 가이드 안에 맞춰주세요', faceCenter.x, faceCenter.y - guideHeight - 20);
+  
+  // 2. 모든 랜드마크를 작은 흰색 반투명 점으로 표시
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
   landmarks.forEach((landmark) => {
     const x = landmark.x * width;
     const y = landmark.y * height;
     
     ctx.beginPath();
-    ctx.arc(x, y, 2, 0, 2 * Math.PI);
+    ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
     ctx.fill();
   });
   
-  // 주요 측정 라인 그리기 (밝은 청록색)
-  ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
+  // 3. 주요 측정 라인 그리기 (밝은 청록색)
+  ctx.strokeStyle = 'rgba(0, 255, 255, 0.9)';
   ctx.lineWidth = 2;
   
-  // 1. 눈동자 간 거리 (IPD) - 가장 중요
+  // 눈동자 간 거리 (IPD) - 가장 중요
   const leftPupil = landmarks[LANDMARKS.LEFT_PUPIL];
   const rightPupil = landmarks[LANDMARKS.RIGHT_PUPIL];
   ctx.beginPath();
@@ -224,23 +242,52 @@ export function drawLandmarks(
   ctx.lineTo(rightPupil.x * width, rightPupil.y * height);
   ctx.stroke();
   
-  // 2. 왼쪽 눈 윤곽
-  const leftEyeInner = landmarks[LANDMARKS.LEFT_EYE_INNER];
-  const leftEyeOuter = landmarks[LANDMARKS.LEFT_EYE_OUTER];
+  // 4. 눈 윤곽 상세 (MediaPipe Studio 스타일)
+  ctx.strokeStyle = 'rgba(100, 200, 255, 0.7)';
+  ctx.lineWidth = 1.5;
+  
+  // 왼쪽 눈 - 상하좌우 연결
+  const leftEyePoints = [
+    LANDMARKS.LEFT_EYE_INNER,
+    LANDMARKS.LEFT_EYE_TOP,
+    LANDMARKS.LEFT_EYE_OUTER,
+    LANDMARKS.LEFT_EYE_BOTTOM,
+    LANDMARKS.LEFT_EYE_INNER
+  ];
+  
   ctx.beginPath();
-  ctx.moveTo(leftEyeInner.x * width, leftEyeInner.y * height);
-  ctx.lineTo(leftEyeOuter.x * width, leftEyeOuter.y * height);
+  leftEyePoints.forEach((index, i) => {
+    const point = landmarks[index];
+    const x = point.x * width;
+    const y = point.y * height;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
   ctx.stroke();
   
-  // 3. 오른쪽 눈 윤곽
-  const rightEyeInner = landmarks[LANDMARKS.RIGHT_EYE_INNER];
-  const rightEyeOuter = landmarks[LANDMARKS.RIGHT_EYE_OUTER];
+  // 오른쪽 눈
+  const rightEyePoints = [
+    LANDMARKS.RIGHT_EYE_INNER,
+    LANDMARKS.RIGHT_EYE_TOP,
+    LANDMARKS.RIGHT_EYE_OUTER,
+    LANDMARKS.RIGHT_EYE_BOTTOM,
+    LANDMARKS.RIGHT_EYE_INNER
+  ];
+  
   ctx.beginPath();
-  ctx.moveTo(rightEyeInner.x * width, rightEyeInner.y * height);
-  ctx.lineTo(rightEyeOuter.x * width, rightEyeOuter.y * height);
+  rightEyePoints.forEach((index, i) => {
+    const point = landmarks[index];
+    const x = point.x * width;
+    const y = point.y * height;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
   ctx.stroke();
   
-  // 4. 코 너비
+  // 5. 코 측정 라인
+  ctx.strokeStyle = 'rgba(0, 255, 255, 0.9)';
+  ctx.lineWidth = 2;
+  
   const noseLeft = landmarks[LANDMARKS.NOSE_LEFT];
   const noseRight = landmarks[LANDMARKS.NOSE_RIGHT];
   ctx.beginPath();
@@ -248,7 +295,7 @@ export function drawLandmarks(
   ctx.lineTo(noseRight.x * width, noseRight.y * height);
   ctx.stroke();
   
-  // 5. 얼굴 길이 (세로)
+  // 6. 얼굴 길이 (세로)
   const faceTop = landmarks[LANDMARKS.FACE_TOP];
   const chin = landmarks[LANDMARKS.CHIN];
   ctx.beginPath();
@@ -256,7 +303,7 @@ export function drawLandmarks(
   ctx.lineTo(chin.x * width, chin.y * height);
   ctx.stroke();
   
-  // 6. 광대뼈 너비
+  // 7. 광대뼈 너비
   const cheekLeft = landmarks[LANDMARKS.CHEEK_LEFT];
   const cheekRight = landmarks[LANDMARKS.CHEEK_RIGHT];
   ctx.beginPath();
@@ -264,7 +311,7 @@ export function drawLandmarks(
   ctx.lineTo(cheekRight.x * width, cheekRight.y * height);
   ctx.stroke();
   
-  // 7. 얼굴 너비 (귀 근처)
+  // 8. 얼굴 너비 (귀 근처)
   const faceLeft = landmarks[LANDMARKS.FACE_LEFT];
   const faceRight = landmarks[LANDMARKS.FACE_RIGHT];
   ctx.beginPath();
@@ -272,8 +319,8 @@ export function drawLandmarks(
   ctx.lineTo(faceRight.x * width, faceRight.y * height);
   ctx.stroke();
   
-  // 주요 포인트 강조 (더 크고 밝게)
-  ctx.fillStyle = 'rgba(0, 255, 255, 0.9)';
+  // 9. 주요 포인트 강조 (더 크고 밝게)
+  ctx.fillStyle = 'rgba(0, 255, 255, 1)';
   const keyPoints = [
     LANDMARKS.LEFT_PUPIL,
     LANDMARKS.RIGHT_PUPIL,
@@ -291,8 +338,12 @@ export function drawLandmarks(
     const x = point.x * width;
     const y = point.y * height;
     
+    // 외곽 글로우 효과
+    ctx.shadowColor = 'rgba(0, 255, 255, 0.8)';
+    ctx.shadowBlur = 10;
     ctx.beginPath();
-    ctx.arc(x, y, 4, 0, 2 * Math.PI);
+    ctx.arc(x, y, 5, 0, 2 * Math.PI);
     ctx.fill();
+    ctx.shadowBlur = 0;
   });
 }
