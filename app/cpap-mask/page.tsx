@@ -1,21 +1,57 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { getMoabomUser, type MoabomUser } from "@/lib/moabom-auth";
 import { getOrCreateUserProfile, saveMeasurement, getLatestMeasurement, type MeasureLog } from "@/lib/supabase";
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
-import { performMeasurement, recommendMaskSize, drawLandmarks, type FaceMeasurements } from "@/lib/face-measurement";
+import {
+  performMeasurement,
+  recommendMaskSize,
+  drawLandmarks,
+  type FaceMeasurements,
+  estimateYaw,
+  performProfileMeasurement,
+  type ProfileMeasurements,
+  LANDMARKS
+} from "@/lib/face-measurement";
+
+// 측정 단계 정의
+type MeasurementStep =
+  | 'IDLE'
+  | 'INIT'
+  | 'GUIDE_CHECK'     // 정면 가이드 맞추기
+  | 'COUNTDOWN'       // 3, 2, 1
+  | 'SCANNING_FRONT'  // 정면 스캔 위
+  | 'GUIDE_TURN_SIDE' // 측면 돌리기 안내
+  | 'SCANNING_PROFILE'// 측면 스캔 중
+  | 'COMPLETE';       // 완료
+
+const COUNTDOWN_SECONDS = 3;
+const SCAN_FRAMES = 30; // 약 1초 동안 데이터 수집 (30fps 기준)
+const YAW_THRESHOLD_FRONT = 10; // 정면 허용 각도
+const YAW_THRESHOLD_PROFILE = 35; // 측면 인식 최소 각도
 
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // 상태 관리
+  const [step, setStep] = useState<MeasurementStep>('IDLE');
   const [status, setStatus] = useState("준비 완료");
+  const [subStatus, setSubStatus] = useState("");
   const [user, setUser] = useState<MoabomUser | null>(null);
   const [latestMeasurement, setLatestMeasurement] = useState<MeasureLog | null>(null);
-  const [isMeasuring, setIsMeasuring] = useState(false);
   const [faceLandmarker, setFaceLandmarker] = useState<FaceLandmarker | null>(null);
-  const [currentMeasurements, setCurrentMeasurements] = useState<FaceMeasurements | null>(null);
+
+  // 측정 데이터
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
+  const [frontBuffer, setFrontBuffer] = useState<FaceMeasurements[]>([]);
+  const [profileBuffer, setProfileBuffer] = useState<ProfileMeasurements[]>([]);
+  const [finalResult, setFinalResult] = useState<{ front: FaceMeasurements, profile: ProfileMeasurements } | null>(null);
+  const [fixedScaleFactor, setFixedScaleFactor] = useState<number>(0);
+
   const animationFrameRef = useRef<number | null>(null);
+  const stableFramesRef = useRef(0); // 자세 안정화 프레임 카운터
 
   // MediaPipe 초기화
   useEffect(() => {
@@ -24,7 +60,7 @@ export default function Home() {
         const vision = await FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
         );
-        
+
         const landmarker = await FaceLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
@@ -33,7 +69,7 @@ export default function Home() {
           runningMode: "VIDEO",
           numFaces: 1,
         });
-        
+
         setFaceLandmarker(landmarker);
       } catch (error) {
         console.error('[MediaPipe] Initialization error:', error);
@@ -51,7 +87,7 @@ export default function Home() {
       if (moabomUser) {
         setUser(moabomUser);
         setStatus(`환영합니다, ${moabomUser.mb_nick}님!`);
-        
+
         await getOrCreateUserProfile(
           moabomUser.mb_id,
           moabomUser.mb_nick,
@@ -70,18 +106,27 @@ export default function Home() {
     initUser();
   }, []);
 
-  // isMeasuring이 true가 되면 detectFace 시작
+  // 단계별 로직 처리
   useEffect(() => {
-    if (isMeasuring && faceLandmarker && videoRef.current) {
-      detectFace();
+    if (step === 'COUNTDOWN') {
+      let count = COUNTDOWN_SECONDS;
+      setCountdown(count);
+      const timer = setInterval(() => {
+        count--;
+        setCountdown(count);
+        if (count === 0) {
+          clearInterval(timer);
+          setStep('SCANNING_FRONT');
+          setFrontBuffer([]); // 버퍼 초기화
+        }
+      }, 1000);
+      return () => clearInterval(timer);
     }
-  }, [isMeasuring, faceLandmarker]);
+  }, [step]);
 
-  // 실시간 얼굴 감지 및 측정
-  const detectFace = async () => {
-    if (!videoRef.current || !canvasRef.current || !faceLandmarker || !isMeasuring) {
-      return;
-    }
+  // 실시간 감지 루프
+  const detectFace = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current || !faceLandmarker) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -92,33 +137,168 @@ export default function Home() {
       return;
     }
 
-    // 캔버스 크기 설정
+    // 캔버스 크기 맞춤
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 비디오 프레임 분석
+    // 얼굴 감지
     const startTimeMs = performance.now();
     const results = faceLandmarker.detectForVideo(video, startTimeMs);
 
-    // 캔버스 클리어
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-      // 랜드마크 그리기
-      drawLandmarks(ctx, results.faceLandmarks[0], canvas.width, canvas.height);
+      const landmarks = results.faceLandmarks[0];
 
-      // 측정 수행
+      // 기본 드로잉
+      drawLandmarks(ctx, landmarks, canvas.width, canvas.height);
+
+      // 측정값 계산
       const measurements = performMeasurement(results);
-      
+      const yaw = estimateYaw(landmarks);
+
       if (measurements) {
-        setCurrentMeasurements(measurements);
-        setStatus(`측정 중... 코: ${measurements.noseWidth}mm | 얼굴: ${measurements.faceLength}mm`);
+        processStep(measurements, yaw, landmarks);
       }
     } else {
-      setStatus("얼굴을 찾을 수 없습니다. 카메라를 정면으로 봐주세요.");
+      // 얼굴 없음 처리
+      if (step === 'GUIDE_CHECK' || step === 'GUIDE_TURN_SIDE') {
+        setSubStatus("얼굴을 찾을 수 없습니다");
+        stableFramesRef.current = 0;
+      }
     }
 
-    animationFrameRef.current = requestAnimationFrame(detectFace);
+    if (step !== 'COMPLETE' && step !== 'IDLE') {
+      animationFrameRef.current = requestAnimationFrame(detectFace);
+    }
+  }, [faceLandmarker, step, fixedScaleFactor]); // fixedScaleFactor 의존성 추가
+
+  // 단계별 처리 로직
+  const processStep = (measurements: FaceMeasurements, yaw: number, landmarks: any[]) => {
+    switch (step) {
+      case 'GUIDE_CHECK':
+        // 정면 응시 확인 (Yaw가 0에 가까워야 함)
+        if (Math.abs(yaw) < YAW_THRESHOLD_FRONT) {
+          stableFramesRef.current++;
+          setSubStatus(`정면 확인 중... ${Math.min(stableFramesRef.current, 20)}/20`);
+
+          if (stableFramesRef.current > 20) { // 약 0.6초 유지
+            setStatus("측정을 시작합니다");
+            setSubStatus("");
+            setStep('COUNTDOWN');
+          }
+        } else {
+          stableFramesRef.current = 0;
+          setSubStatus("정면을 봐주세요");
+        }
+        break;
+
+      case 'SCANNING_FRONT':
+        // 정면 데이터 수집
+        setFrontBuffer(prev => [...prev, measurements]);
+        setStatus("정면 스캔 중...");
+        setSubStatus(`${frontBuffer.length} / ${SCAN_FRAMES}`);
+
+        if (frontBuffer.length >= SCAN_FRAMES) {
+          // 정면 스캔 완료 시 스케일 팩터 고정
+          // 마지막 프레임보다는 평균을 사용하는 것이 좋으나, 여기서는 마지막 누적 버퍼의 평균을 계산
+          const currentBuffer = [...frontBuffer, measurements];
+          const avgScale = currentBuffer.reduce((acc, cur) => acc + cur.scaleFactor, 0) / currentBuffer.length;
+          setFixedScaleFactor(avgScale);
+
+          setStep('GUIDE_TURN_SIDE');
+          setStatus("측면 측정");
+          setSubStatus("고개를 천천히 옆으로 돌려주세요");
+          stableFramesRef.current = 0;
+        }
+        break;
+
+      case 'GUIDE_TURN_SIDE':
+        // 측면 회전 확인 (Yaw가 일정 이상이어야 함)
+        if (Math.abs(yaw) > YAW_THRESHOLD_PROFILE) {
+          stableFramesRef.current++;
+
+          if (stableFramesRef.current > 10) {
+            setStep('SCANNING_PROFILE');
+            setProfileBuffer([]); // 초기화
+          }
+        } else {
+          stableFramesRef.current = 0; // 다시 돌아오면 리셋
+        }
+        break;
+
+      case 'SCANNING_PROFILE':
+        // 측면 데이터 수집 - 고정된 스케일 팩터 사용
+        const profileData = performProfileMeasurement(landmarks, fixedScaleFactor);
+        setProfileBuffer(prev => [...prev, profileData]);
+        setStatus("측면 스캔 중...");
+        setSubStatus(`${profileBuffer.length} / ${SCAN_FRAMES}`);
+
+        if (profileBuffer.length >= SCAN_FRAMES) {
+          finishMeasurement();
+        }
+        break;
+    }
+  };
+
+  // 측정 완료 및 결과 처리
+  const finishMeasurement = () => {
+    // 평균값 계산
+    const avgFront = calculateAverageFront(frontBuffer);
+    const avgProfile = calculateAverageProfile(profileBuffer);
+
+    setFinalResult({
+      front: avgFront,
+      profile: avgProfile
+    });
+
+    setStep('COMPLETE');
+    setStatus("측정 완료");
+    setSubStatus("결과를 확인하고 저장하세요");
+
+    // 카메라 정지
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+    }
+  };
+
+  const calculateAverageFront = (buffer: FaceMeasurements[]): FaceMeasurements => {
+    if (buffer.length === 0) return buffer[0]; // Fallback
+
+    // 간단 평균
+    const sum = buffer.reduce((acc, cur) => ({
+      noseWidth: acc.noseWidth + cur.noseWidth,
+      faceLength: acc.faceLength + cur.faceLength,
+      chinAngle: acc.chinAngle + cur.chinAngle,
+      ipdPixels: acc.ipdPixels + cur.ipdPixels,
+      scaleFactor: acc.scaleFactor + cur.scaleFactor,
+      confidence: acc.confidence
+    }), { noseWidth: 0, faceLength: 0, chinAngle: 0, ipdPixels: 0, scaleFactor: 0, confidence: 0 });
+
+    const count = buffer.length;
+    return {
+      noseWidth: Math.round(sum.noseWidth / count * 10) / 10,
+      faceLength: Math.round(sum.faceLength / count * 10) / 10,
+      chinAngle: Math.round(sum.chinAngle / count * 10) / 10,
+      ipdPixels: sum.ipdPixels / count,
+      scaleFactor: sum.scaleFactor / count,
+      confidence: 0.95
+    };
+  };
+
+  const calculateAverageProfile = (buffer: ProfileMeasurements[]): ProfileMeasurements => {
+    if (buffer.length === 0) return { noseHeight: 0, faceDepth: 0 };
+
+    const sum = buffer.reduce((acc, cur) => ({
+      noseHeight: acc.noseHeight + cur.noseHeight,
+      faceDepth: acc.faceDepth + cur.faceDepth
+    }), { noseHeight: 0, faceDepth: 0 });
+
+    const count = buffer.length;
+    return {
+      noseHeight: Math.round(sum.noseHeight / count * 10) / 10,
+      faceDepth: Math.round(sum.faceDepth / count * 10) / 10
+    };
   };
 
   const startCamera = async () => {
@@ -126,186 +306,232 @@ export default function Home() {
       setStatus("에러: 로그인이 필요합니다");
       return;
     }
-
     if (!faceLandmarker) {
-      setStatus("에러: MediaPipe 로딩 중...");
+      setStatus("에러: AI 모델 로딩 중...");
       return;
     }
 
-    setStatus("카메라 연결 중...");
-    
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
           facingMode: "user",
           width: { ideal: 1280 },
           height: { ideal: 720 }
-        } 
+        }
       });
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play();
-          setIsMeasuring(true);
-          setStatus("얼굴을 정면으로 봐주세요");
+          setStep('GUIDE_CHECK');
+          setStatus("카메라를 정면으로 봐주세요");
+          // 시작
+          requestAnimationFrame(detectFace);
         };
       }
     } catch (err: any) {
-      console.error("카메라 접근 에러:", err);
-      setStatus(`에러: 카메라 권한을 허용해주세요. (${err.name})`);
+      console.error("카메라 에러:", err);
+      setStatus("카메라 권한이 필요합니다");
     }
   };
 
-  const stopCamera = () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
+  const handleSave = async () => {
+    if (!user || !finalResult) return;
 
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
+    setStatus("저장 중...");
 
-    setIsMeasuring(false);
-    setCurrentMeasurements(null);
-    setStatus("측정 중지됨");
-  };
-
-  const saveMeasurementResult = async () => {
-    if (!user || !currentMeasurements) return;
-
-    setStatus("측정 결과 저장 중...");
-
-    const recommendedSize = recommendMaskSize(currentMeasurements);
-
-    const measurementData = {
+    const recommendedSize = recommendMaskSize(finalResult.front);
+    const saveData = {
       user_id: user.mb_id,
       user_name: user.mb_nick,
-      nose_width: currentMeasurements.noseWidth,
-      face_length: currentMeasurements.faceLength,
-      chin_angle: currentMeasurements.chinAngle,
+      nose_width: finalResult.front.noseWidth,
+      face_length: finalResult.front.faceLength,
+      chin_angle: finalResult.front.chinAngle,
       recommended_size: recommendedSize,
       measurement_data: {
         timestamp: new Date().toISOString(),
-        confidence: currentMeasurements.confidence,
-        ipd_pixels: currentMeasurements.ipdPixels,
-        scale_factor: currentMeasurements.scaleFactor,
-      },
+        profile: finalResult.profile,
+        front_raw: finalResult.front
+      }
     };
 
-    const result = await saveMeasurement(measurementData);
-
-    if (result.success) {
-      setStatus(`측정 완료! 추천 사이즈: ${recommendedSize}`);
-      setLatestMeasurement(result.data!);
-      
-      // 모아봄에 결과 전달
-      window.parent.postMessage({
-        type: 'MEASUREMENT_COMPLETE',
-        data: result.data
-      }, '*');
-
-      stopCamera();
+    const res = await saveMeasurement(saveData);
+    if (res.success) {
+      setLatestMeasurement(res.data!);
+      alert("저장되었습니다!");
+      window.parent.postMessage({ type: 'MEASUREMENT_COMPLETE', data: res.data }, '*');
     } else {
-      setStatus(`저장 실패: ${result.error?.message || '알 수 없는 오류'}`);
-      console.error('[Save] Error:', result.error);
+      alert("저장 실패");
     }
   };
 
+  const handleRetry = () => {
+    setFinalResult(null);
+    setFrontBuffer([]);
+    setProfileBuffer([]);
+    startCamera();
+  };
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-black">
-      {/* 전체화면 비디오 + 캔버스 */}
-      <div className="relative w-full h-screen">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-black font-sans text-white overflow-hidden">
+      {/* 메인 뷰포트 */}
+      <div className="relative w-full h-screen max-w-md mx-auto bg-gray-900 shadow-2xl overflow-hidden">
+        {/* 카메라 비디오 */}
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className="absolute inset-0 w-full h-full object-cover"
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${step === 'IDLE' ? 'opacity-0' : 'opacity-100'}`}
           style={{ transform: 'scaleX(-1)' }}
         />
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full"
+          className="absolute inset-0 w-full h-full pointer-events-none"
           style={{ transform: 'scaleX(-1)' }}
         />
-        
-        {/* 상단 헤더 오버레이 */}
-        <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/70 to-transparent">
-          <div className="text-center space-y-1">
-            <h1 className="text-2xl md:text-4xl font-bold tracking-tighter bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-              smartcare360 AI Vision
+
+        {/* UI 레이어: 상태별 오버레이 */}
+
+        {/* 1. IDLE 상태 */}
+        {step === 'IDLE' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-800 to-black">
+            <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+              SmartCare AI
             </h1>
-            <p className="text-xs md:text-sm text-white/90">{status}</p>
-            {user && (
-              <div className="text-xs text-white/70">
-                {user.mb_nick} ({user.mb_id})
+            <p className="text-gray-400 mb-8 text-center max-w-xs">
+              정확한 양압기 마스크 추천을 위해<br />3D 안면 분석을 시작합니다.
+            </p>
+            <div className="space-y-4 w-full max-w-xs">
+              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-300 mb-2">측정 가이드</h3>
+                <ul className="text-xs text-gray-400 space-y-2 list-disc pl-4">
+                  <li>밝은 곳에서 촬영해주세요</li>
+                  <li>모자나 안경을 벗어주세요</li>
+                  <li>정면과 측면 측정이 진행됩니다</li>
+                </ul>
               </div>
-            )}
-          </div>
-        </div>
-        
-        {/* 측정 정보 오버레이 */}
-        {currentMeasurements && (
-          <div className="absolute top-20 left-4 bg-black/70 backdrop-blur-sm text-white p-3 rounded-lg text-xs space-y-1 border border-cyan-500/30">
-            <div>코 너비: <span className="font-bold text-cyan-400">{currentMeasurements.noseWidth}mm</span></div>
-            <div>얼굴 길이: <span className="font-bold text-cyan-400">{currentMeasurements.faceLength}mm</span></div>
-            <div>턱 각도: <span className="font-bold text-cyan-400">{currentMeasurements.chinAngle}°</span></div>
-            <div className="pt-2 border-t border-cyan-500/30">
-              추천: <span className="font-bold text-green-400">{recommendMaskSize(currentMeasurements)} 사이즈</span>
-            </div>
-          </div>
-        )}
 
-        {/* 최근 측정 결과 */}
-        {latestMeasurement && !isMeasuring && (
-          <div className="absolute top-20 left-4 right-4 md:left-4 md:right-auto md:w-80 bg-black/70 backdrop-blur-sm text-white p-4 rounded-xl border border-white/20">
-            <h3 className="text-sm font-semibold mb-2">최근 측정 결과</h3>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div>추천 사이즈: <span className="font-bold text-cyan-400">{latestMeasurement.recommended_size}</span></div>
-              <div>코 너비: {latestMeasurement.nose_width}mm</div>
-              <div>얼굴 길이: {latestMeasurement.face_length}mm</div>
-              <div>측정일: {new Date(latestMeasurement.created_at!).toLocaleDateString('ko-KR')}</div>
-            </div>
-          </div>
-        )}
-
-        {/* 하단 컨트롤 버튼 오버레이 */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-t from-black/70 to-transparent">
-          <div className="flex gap-3 max-w-2xl mx-auto">
-            {!isMeasuring ? (
               <button
                 onClick={startCamera}
                 disabled={!user || !faceLandmarker}
-                className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 font-bold transition-all active:scale-95 shadow-lg shadow-blue-900/20"
               >
-                {faceLandmarker ? "측정 시작" : "로딩 중..."}
+                {faceLandmarker ? "측정 시작하기" : "시스템 로딩 중..."}
               </button>
-            ) : (
-              <>
-                <button
-                  onClick={saveMeasurementResult}
-                  disabled={!currentMeasurements}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 shadow-lg"
-                >
-                  결과 저장
-                </button>
-                <button
-                  onClick={stopCamera}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-8 py-4 text-lg font-bold text-white transition-transform hover:scale-105 active:scale-95 shadow-lg"
-                >
-                  중지
-                </button>
-              </>
+            </div>
+
+            {latestMeasurement && (
+              <div className="mt-8 text-xs text-center text-gray-500">
+                최근 측정: {latestMeasurement.recommended_size} 사이즈 ({new Date(latestMeasurement.created_at!).toLocaleDateString()})
+              </div>
             )}
           </div>
-          
-          <p className="text-xs text-center text-white/60 mt-3">
-            3D 안면 분석을 통해 최적의 양압기 마스크를 추천합니다
-          </p>
-        </div>
+        )}
+
+        {/* 2. 가이드 오버레이 (공통) */}
+        {step !== 'IDLE' && step !== 'COMPLETE' && (
+          <div className="absolute inset-0 pointer-events-none">
+            {/* 상단 메시지 바 */}
+            <div className="absolute top-0 left-0 right-0 p-8 pt-12 bg-gradient-to-b from-black/80 to-transparent text-center z-10">
+              <h2 className="text-xl font-bold text-white drop-shadow-md">{status}</h2>
+              <p className="text-sm text-cyan-300 mt-1 animate-pulse font-medium">{subStatus}</p>
+            </div>
+
+            {/* 가이드라인 SVG */}
+            <svg className="absolute inset-0 w-full h-full opacity-30" viewBox="0 0 100 100" preserveAspectRatio="none">
+              {/* 정면 가이드 */}
+              {(step === 'GUIDE_CHECK' || step === 'SCANNING_FRONT' || step === 'COUNTDOWN') && (
+                <ellipse cx="50" cy="50" rx="30" ry="40" fill="none" stroke="white" strokeWidth="0.5" strokeDasharray="2 2" />
+              )}
+              {/* 측면 가이드 - 화살표 */}
+              {(step === 'GUIDE_TURN_SIDE') && (
+                <path d="M 50 20 Q 80 20 80 50" fill="none" stroke="cyan" strokeWidth="1" markerEnd="url(#arrow)" />
+              )}
+            </svg>
+          </div>
+        )}
+
+        {/* 3. 카운트다운 */}
+        {step === 'COUNTDOWN' && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-20">
+            <div className="text-9xl font-black text-white animate-ping drop-shadow-2xl">
+              {countdown}
+            </div>
+          </div>
+        )}
+
+        {/* 4. 스캔 프로그레스 */}
+        {(step === 'SCANNING_FRONT' || step === 'SCANNING_PROFILE') && (
+          <div className="absolute bottom-10 left-10 right-10 z-20">
+            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-cyan-500 transition-all duration-100"
+                style={{
+                  width: `${((step === 'SCANNING_FRONT' ? frontBuffer.length : profileBuffer.length) / SCAN_FRAMES) * 100}%`
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* 5. 완료 결과 화면 */}
+        {step === 'COMPLETE' && finalResult && (
+          <div className="absolute inset-0 bg-gray-900 flex flex-col p-6 z-30 animate-in fade-in slide-in-from-bottom-10 duration-500">
+            <div className="flex-1 flex flex-col items-center pt-10">
+              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6">
+                <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+              </div>
+
+              <h2 className="text-2xl font-bold text-white mb-1">측정 완료</h2>
+              <p className="text-gray-400 text-sm mb-8">AI 분석 결과가 준비되었습니다.</p>
+
+              <div className="w-full bg-gray-800 rounded-2xl p-6 border border-gray-700 space-y-4">
+                <div className="flex justify-between items-center pb-4 border-b border-gray-700">
+                  <span className="text-gray-400">추천 사이즈</span>
+                  <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+                    {recommendMaskSize(finalResult.front)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="bg-black/20 p-3 rounded-lg">
+                    <div className="text-gray-500 text-xs mb-1">코 너비</div>
+                    <div className="font-semibold">{finalResult.front.noseWidth}mm</div>
+                  </div>
+                  <div className="bg-black/20 p-3 rounded-lg">
+                    <div className="text-gray-500 text-xs mb-1">얼굴 길이</div>
+                    <div className="font-semibold">{finalResult.front.faceLength}mm</div>
+                  </div>
+                  <div className="bg-black/20 p-3 rounded-lg">
+                    <div className="text-gray-500 text-xs mb-1">코 높이 (측면)</div>
+                    <div className="font-semibold text-cyan-300">{finalResult.profile.noseHeight}mm</div>
+                  </div>
+                  <div className="bg-black/20 p-3 rounded-lg">
+                    <div className="text-gray-500 text-xs mb-1">턱 각도</div>
+                    <div className="font-semibold">{finalResult.front.chinAngle}°</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleRetry}
+                className="flex-1 py-4 rounded-xl bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors"
+              >
+                재측정
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex-[2] py-4 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white shadow-lg transition-all active:scale-95"
+              >
+                결과 저장하기
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
