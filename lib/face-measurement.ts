@@ -51,6 +51,11 @@ export const LANDMARKS = {
 // 평균 IPD (눈동자 간 거리) - mm 단위
 const AVERAGE_IPD_MM = 63; // 성인 평균
 
+/** MediaPipe 랜드마크는 0~1 정규화 좌표. 눈 간 거리가 이 값 이상이어야 정확한 mm 환산 가능 (너무 멀면 과대 측정) */
+export const MIN_IPD_NORMALIZED = 0.10;
+/** 얼굴 길이 상한(mm). 이보다 크면 거리/캠 각도 문제로 과대 측정된 것으로 간주 */
+export const FACE_LENGTH_MAX_MM = 280;
+
 /**
  * 두 점 사이의 유클리드 거리 계산 (픽셀)
  */
@@ -172,6 +177,16 @@ export function performMeasurement(result: FaceLandmarkerResult): FaceMeasuremen
   };
 }
 
+/** 프레임 내 얼굴이 충분히 클 때만 true (멀리 있으면 false → 과대 측정 방지) */
+export function isFaceSizeValidForMeasurement(measurements: FaceMeasurements): boolean {
+  return measurements.ipdPixels >= MIN_IPD_NORMALIZED;
+}
+
+/** 측정값이 상식 범위인지 (과대 측정 시 false) */
+export function isFaceLengthInRange(faceLengthMm: number): boolean {
+  return faceLengthMm > 0 && faceLengthMm <= FACE_LENGTH_MAX_MM;
+}
+
 /**
  * 3D 안면 회전(Yaw) 추정 (도)
  * - 양쪽 눈 바깥 끝과 코 끝의 상대적 위치를 사용하여 대략적인 회전각 추정
@@ -263,27 +278,24 @@ export function drawLandmarks(
   width: number,
   height: number
 ) {
-  // 1. 얼굴 가이드 오버레이 (계란형 -위가 넓고 아래 좁음)
-  const faceCenter = {
-    x: width / 2,
-    y: height / 2
-  };
-  const guideWidth = width * 0.32;
-  const guideHeight = height * 0.48;
+  // 1. 얼굴 가이드 오버레이 - 가운데, 짧은 쪽 기준으로 비율 맞춤 (상하로 꽉 차지 않음)
+  const faceCenter = { x: width / 2, y: height / 2 };
+  const short = Math.min(width, height);
+  const guideW = short * 0.36;
+  const guideH = short * 0.42;
 
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
   ctx.lineWidth = 2;
   ctx.setLineDash([10, 5]);
   ctx.beginPath();
-  ctx.ellipse(faceCenter.x, faceCenter.y, guideWidth, guideHeight, 0, 0, 2 * Math.PI);
+  ctx.ellipse(faceCenter.x, faceCenter.y, guideW, guideH, 0, 0, 2 * Math.PI);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // 가이드 텍스트
   ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
   ctx.font = '14px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('얼굴을 가이드 안에 맞춰주세요', faceCenter.x, faceCenter.y - guideHeight - 20);
+  ctx.fillText('얼굴을 가이드 안에 맞춰주세요', faceCenter.x, faceCenter.y - guideH - 20);
 
   // 2. 모든 랜드마크를 작은 흰색 반투명 점으로 표시
   ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';

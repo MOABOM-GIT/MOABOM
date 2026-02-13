@@ -12,7 +12,9 @@ import {
   estimateYaw,
   performProfileMeasurement,
   type ProfileMeasurements,
-  LANDMARKS
+  isFaceSizeValidForMeasurement,
+  isFaceLengthInRange,
+  FACE_LENGTH_MAX_MM,
 } from "@/lib/face-measurement";
 
 // 측정 단계 정의
@@ -238,6 +240,12 @@ export default function Home() {
       case 'GUIDE_CHECK':
         // 정면 응시 확인 (Yaw가 0에 가까워야 함)
         if (Math.abs(yaw) < YAW_THRESHOLD_FRONT) {
+          // PC 등에서 얼굴이 작게 잡히면(멀리 있으면) mm 값이 과대 측정됨 → 가이드에 가득 차야 진행
+          if (!isFaceSizeValidForMeasurement(measurements)) {
+            stableFramesRef.current = 0;
+            setSubStatus("얼굴을 가이드에 가득 차게 가까이 해 주세요");
+            break;
+          }
           stableFramesRef.current++;
           setSubStatus(`정면 확인 중... ${Math.min(stableFramesRef.current, 20)}/20`);
 
@@ -245,9 +253,7 @@ export default function Home() {
             setStatus("측정을 시작합니다");
             setSubStatus("");
 
-            // State Update
             setStep('COUNTDOWN');
-            // Ref Update (즉시 반영을 위해)
             stepRef.current = 'COUNTDOWN';
           }
         } else {
@@ -269,14 +275,34 @@ export default function Home() {
         }
 
         if (len >= SCAN_FRAMES) {
-          // 정면 스캔 완료 시 스케일 팩터 고정
-          const avgScale = frontBufferRef.current.reduce((acc, cur) => acc + cur.scaleFactor, 0) / frontBufferRef.current.length;
+          const avgFront = frontBufferRef.current.reduce(
+            (acc, cur) => ({ scale: acc.scale + cur.scaleFactor, ipd: acc.ipd + cur.ipdPixels }),
+            { scale: 0, ipd: 0 }
+          );
+          const n = frontBufferRef.current.length;
+          const avgScale = avgFront.scale / n;
+          const avgIpd = avgFront.ipd / n;
+          // 스캔 중에도 거리가 멀어지면 평균이 낮아질 수 있음 → 검사
+          const avgMeasurements: FaceMeasurements = {
+            ...frontBufferRef.current[0],
+            ipdPixels: avgIpd,
+            scaleFactor: avgScale,
+          };
+          if (!isFaceSizeValidForMeasurement(avgMeasurements)) {
+            frontBufferRef.current = [];
+            setScanProgress(0);
+            setStep('GUIDE_CHECK');
+            stepRef.current = 'GUIDE_CHECK';
+            setStatus("카메라를 정면으로 봐주세요");
+            setSubStatus("거리가 멀어 측정이 부정확합니다. 얼굴을 가이드에 가득 맞춰 주세요.");
+            stableFramesRef.current = 0;
+            break;
+          }
           setFixedScaleFactor(avgScale);
-          fixedScaleFactorRef.current = avgScale; // Sync Ref
+          fixedScaleFactorRef.current = avgScale;
 
           setStep('GUIDE_TURN_SIDE');
           stepRef.current = 'GUIDE_TURN_SIDE';
-
           setStatus("측면 측정");
           setSubStatus("고개를 천천히 옆으로 돌려주세요");
           stableFramesRef.current = 0;
@@ -527,6 +553,7 @@ export default function Home() {
                   <li>밝은 곳에서 촬영해주세요</li>
                   <li>모자나 안경을 벗어주세요</li>
                   <li>정면과 측면 측정이 진행됩니다</li>
+                  <li>PC는 얼굴이 가이드에 가득 차도록 가까이 해 주세요</li>
                 </ul>
               </div>
 
@@ -556,16 +583,16 @@ export default function Home() {
               <p className="text-sm text-cyan-300 mt-1 animate-pulse font-medium">{subStatus}</p>
             </div>
 
-            {/* 가이드라인 SVG */}
-            <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 100 100" preserveAspectRatio="none">
+            {/* 가이드라인 SVG - 비율 유지하고 가운데 정렬 (상하로 꽉 차지 않음) */}
+            <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
               <defs>
                 <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
                   <path d="M0,0 L0,6 L9,3 z" fill="cyan" />
                 </marker>
               </defs>
-              {/* 정면 가이드 - 계란형 */}
+              {/* 정면 가이드 - 가운데 계란형 (세로로 길지 않게) */}
               {(step === 'GUIDE_CHECK' || step === 'SCANNING_FRONT' || step === 'COUNTDOWN') && (
-                <ellipse cx="50" cy="50" rx="32" ry="46" fill="none" stroke="white" strokeWidth="0.8" strokeDasharray="4 4" />
+                <ellipse cx="50" cy="50" rx="38" ry="42" fill="none" stroke="white" strokeWidth="0.8" strokeDasharray="4 4" />
               )}
               {/* 측면 가이드 - 화살표 (고개를 옆으로 돌리세요) */}
               {(step === 'GUIDE_TURN_SIDE') && (
@@ -639,6 +666,11 @@ export default function Home() {
                     <div className="text-gray-500 text-xs mb-1">얼굴 길이</div>
                     <div className="font-semibold">{finalResult.front.faceLength}mm</div>
                   </div>
+                  {!isFaceLengthInRange(finalResult.front.faceLength) && (
+                    <div className="col-span-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs">
+                      거리가 멀어 값이 과대 측정되었을 수 있습니다. 재측정 시 얼굴을 가이드에 가득 맞춰 주세요.
+                    </div>
+                  )}
                   <div className="bg-black/20 p-3 rounded-lg">
                     <div className="text-gray-500 text-xs mb-1">코 높이 (측면)</div>
                     <div className="font-semibold text-cyan-300">{finalResult.profile.noseHeight}mm</div>
