@@ -36,7 +36,7 @@ export async function getOrCreateUserProfile(userId: string, userName: string, u
       .from('users_profile')
       .select('*')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (existing) {
       return existing
@@ -116,7 +116,7 @@ export async function getLatestMeasurement(userId: string): Promise<MeasureLog |
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
     if (error) {
       console.error('[Supabase] Error fetching latest measurement:', error)
