@@ -146,7 +146,7 @@ export default function Home() {
       // Canvas Context 가져오기 (매 프레임마다 확인)
       const ctx = canvas.getContext('2d');
 
-      if (!ctx || video.readyState !== 4) {
+      if (!ctx || video.readyState < 2) {
         animationFrameRef.current = requestAnimationFrame(detectFace);
         return;
       }
@@ -171,7 +171,8 @@ export default function Home() {
         const yaw = estimateYaw(landmarks);
 
         if (measurements) {
-          processStep(measurements, yaw, landmarks);
+          const currentStep = stepRef.current;
+          processStep(currentStep, measurements, yaw, landmarks);
         }
       } else {
         // 얼굴 없음 처리
@@ -184,25 +185,26 @@ export default function Home() {
 
       // 루프 지속 조건 확인 (Ref 사용)
       const currentStep = stepRef.current;
-      if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE') {
+      if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE' && currentStep !== 'COUNTDOWN') {
         animationFrameRef.current = requestAnimationFrame(detectFace);
+      } else if (currentStep === 'COMPLETE') {
+        animationFrameRef.current = null;
       }
     } catch (e) {
       console.error("Detection Loop Error:", e);
-      // 에러 발생해도 재시도 시도 (1초 후)
-      setTimeout(() => {
-        const currentStep = stepRef.current;
-        if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE') {
-          animationFrameRef.current = requestAnimationFrame(detectFace);
-        }
-      }, 1000);
+      const currentStep = stepRef.current;
+      if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE') {
+        setTimeout(() => {
+          if (stepRef.current !== 'COMPLETE' && stepRef.current !== 'IDLE') {
+            animationFrameRef.current = requestAnimationFrame(detectFace);
+          }
+        }, 1000);
+      }
     }
   }, [faceLandmarker]); // 의존성을 최소화 (Refs 사용)
 
   // 단계별 처리 로직
-  const processStep = (measurements: FaceMeasurements, yaw: number, landmarks: any[]) => {
-    const currentStep = stepRef.current;
-
+  const processStep = (currentStep: MeasurementStep, measurements: FaceMeasurements, yaw: number, landmarks: any[]) => {
     switch (currentStep) {
       case 'GUIDE_CHECK':
         // 정면 응시 확인 (Yaw가 0에 가까워야 함)
@@ -404,9 +406,11 @@ export default function Home() {
   };
 
   const handleRetry = () => {
+    setStep('IDLE');
     setFinalResult(null);
     frontBufferRef.current = [];
     profileBufferRef.current = [];
+    stableFramesRef.current = 0;
     startCamera();
   };
 
@@ -478,10 +482,10 @@ export default function Home() {
 
             {/* 가이드라인 SVG */}
             <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 100 100" preserveAspectRatio="none">
-              {/* 정면 가이드 - 달걀형 (위가 조금 더 넓고 아래가 좁은 형태는 타원으로 표현 어려우므로 비율 조정) */}
+              {/* 정면 가이드 - 계란형 (위가 넓고 아래 좁음) */}
               {(step === 'GUIDE_CHECK' || step === 'SCANNING_FRONT' || step === 'COUNTDOWN') && (
-                // rx: 36, ry: 45 (0.8 비율, 조금 더 넓게)
-                <ellipse cx="50" cy="50" rx="36" ry="45" fill="none" stroke="white" strokeWidth="0.8" strokeDasharray="4 4" />
+                // rx: 32, ry: 46 (0.696 비율, 계란형)
+                <ellipse cx="50" cy="50" rx="32" ry="46" fill="none" stroke="white" strokeWidth="0.8" strokeDasharray="4 4" />
               )}
               {/* 측면 가이드 - 화살표 */}
               {(step === 'GUIDE_TURN_SIDE') && (

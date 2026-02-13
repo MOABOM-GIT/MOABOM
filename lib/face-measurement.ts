@@ -263,13 +263,13 @@ export function drawLandmarks(
   width: number,
   height: number
 ) {
-  // 1. 얼굴 가이드 오버레이 (타원형)
+  // 1. 얼굴 가이드 오버레이 (계란형 -위가 넓고 아래 좁음)
   const faceCenter = {
     x: width / 2,
     y: height / 2
   };
-  const guideWidth = width * 0.35;
-  const guideHeight = height * 0.5;
+  const guideWidth = width * 0.32;
+  const guideHeight = height * 0.48;
 
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
   ctx.lineWidth = 2;
