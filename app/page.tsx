@@ -177,10 +177,15 @@ export default function Home() {
         videoRef.current.onloadedmetadata = () => {
           console.log('[StartCamera] Video metadata loaded');
           videoRef.current?.play();
+          console.log('[StartCamera] Setting isMeasuring to true');
           setIsMeasuring(true);
           setStatus("얼굴을 정면으로 봐주세요");
           console.log('[StartCamera] Starting detectFace loop...');
-          detectFace();
+          // isMeasuring 상태가 업데이트된 후 detectFace 호출
+          setTimeout(() => {
+            console.log('[StartCamera] Calling detectFace after state update');
+            detectFace();
+          }, 100);
         };
       }
     } catch (err) {
