@@ -83,6 +83,12 @@ export default function Home() {
   // 실시간 얼굴 감지 및 측정
   const detectFace = async () => {
     if (!videoRef.current || !canvasRef.current || !faceLandmarker || !isMeasuring) {
+      console.log('[DetectFace] Skipped:', { 
+        hasVideo: !!videoRef.current, 
+        hasCanvas: !!canvasRef.current, 
+        hasFaceLandmarker: !!faceLandmarker, 
+        isMeasuring 
+      });
       return;
     }
 
@@ -91,6 +97,7 @@ export default function Home() {
     const ctx = canvas.getContext('2d');
 
     if (!ctx || video.readyState !== 4) {
+      console.log('[DetectFace] Video not ready:', { hasCtx: !!ctx, readyState: video.readyState });
       animationFrameRef.current = requestAnimationFrame(detectFace);
       return;
     }
@@ -98,20 +105,29 @@ export default function Home() {
     // 캔버스 크기 설정
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
+    console.log('[DetectFace] Canvas size:', canvas.width, 'x', canvas.height);
 
     // 비디오 프레임 분석
     const startTimeMs = performance.now();
     const results = faceLandmarker.detectForVideo(video, startTimeMs);
+    console.log('[DetectFace] Results:', { 
+      hasFaceLandmarks: !!results.faceLandmarks, 
+      count: results.faceLandmarks?.length || 0 
+    });
 
     // 캔버스 클리어
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+      console.log('[DetectFace] Face detected! Drawing landmarks...');
+      
       // 랜드마크 그리기
       drawLandmarks(ctx, results.faceLandmarks[0], canvas.width, canvas.height);
 
       // 측정 수행
       const measurements = performMeasurement(results);
+      console.log('[DetectFace] Measurements:', measurements);
+      
       if (measurements) {
         setCurrentMeasurements(measurements);
         setStatus(`측정 중... 코: ${measurements.noseWidth}mm | 얼굴: ${measurements.faceLength}mm`);
@@ -176,7 +192,18 @@ export default function Home() {
   };
 
   const saveMeasurementResult = async () => {
-    if (!user || !currentMeasurements) return;
+    console.log('[Save] Button clicked');
+    console.log('[Save] Current state:', { 
+      hasUser: !!user, 
+      hasMeasurements: !!currentMeasurements,
+      user,
+      currentMeasurements 
+    });
+
+    if (!user || !currentMeasurements) {
+      console.log('[Save] Missing user or measurements, aborting');
+      return;
+    }
 
     setStatus("측정 결과 저장 중...");
     console.log('[Save] Starting save...', { user, currentMeasurements });
