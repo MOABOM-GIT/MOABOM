@@ -27,7 +27,7 @@ type MeasurementStep =
   | 'COMPLETE';       // 완료
 
 const COUNTDOWN_SECONDS = 3;
-const SCAN_FRAMES = 30; // 약 1초 동안 데이터 수집 (30fps 기준)
+const SCAN_FRAMES = 90; // 약 3초 동안 데이터 수집 (30fps 기준) - 천천히 측정
 const YAW_THRESHOLD_FRONT = 10; // 정면 허용 각도
 const YAW_THRESHOLD_PROFILE = 35; // 측면 인식 최소 각도
 
@@ -100,8 +100,8 @@ export default function Home() {
 
         await getOrCreateUserProfile(
           moabomUser.mb_id,
-          moabomUser.mb_nick,
-          moabomUser.mb_email
+          moabomUser.mb_email,
+          moabomUser.mb_nick
         );
 
         const latest = await getLatestMeasurement(moabomUser.mb_id);
@@ -139,52 +139,63 @@ export default function Home() {
   const detectFace = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || !faceLandmarker) return;
 
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
+    try {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
 
-    // Canvas Context 가져오기 (매 프레임마다 확인)
-    const ctx = canvas.getContext('2d');
+      // Canvas Context 가져오기 (매 프레임마다 확인)
+      const ctx = canvas.getContext('2d');
 
-    if (!ctx || video.readyState !== 4) {
-      animationFrameRef.current = requestAnimationFrame(detectFace);
-      return;
-    }
-
-    // 캔버스 크기 맞춤
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 얼굴 감지
-    const startTimeMs = performance.now();
-    const results = faceLandmarker.detectForVideo(video, startTimeMs);
-
-    if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-      const landmarks = results.faceLandmarks[0];
-
-      // 기본 드로잉
-      drawLandmarks(ctx, landmarks, canvas.width, canvas.height);
-
-      // 측정값 계산
-      const measurements = performMeasurement(results);
-      const yaw = estimateYaw(landmarks);
-
-      if (measurements) {
-        processStep(measurements, yaw, landmarks);
+      if (!ctx || video.readyState !== 4) {
+        animationFrameRef.current = requestAnimationFrame(detectFace);
+        return;
       }
-    } else {
-      // 얼굴 없음 처리
+
+      // 캔버스 크기 맞춤
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 얼굴 감지
+      const startTimeMs = performance.now();
+      const results = faceLandmarker.detectForVideo(video, startTimeMs);
+
+      if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+        const landmarks = results.faceLandmarks[0];
+
+        // 기본 드로잉
+        drawLandmarks(ctx, landmarks, canvas.width, canvas.height);
+
+        // 측정값 계산
+        const measurements = performMeasurement(results);
+        const yaw = estimateYaw(landmarks);
+
+        if (measurements) {
+          processStep(measurements, yaw, landmarks);
+        }
+      } else {
+        // 얼굴 없음 처리
+        const currentStep = stepRef.current;
+        if (currentStep === 'GUIDE_CHECK' || currentStep === 'GUIDE_TURN_SIDE') {
+          setSubStatus("얼굴을 찾을 수 없습니다");
+          stableFramesRef.current = 0;
+        }
+      }
+
+      // 루프 지속 조건 확인 (Ref 사용)
       const currentStep = stepRef.current;
-      if (currentStep === 'GUIDE_CHECK' || currentStep === 'GUIDE_TURN_SIDE') {
-        setSubStatus("얼굴을 찾을 수 없습니다");
-        stableFramesRef.current = 0;
+      if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE') {
+        animationFrameRef.current = requestAnimationFrame(detectFace);
       }
-    }
-
-    // 루프 지속 조건 확인 (Ref 사용)
-    const currentStep = stepRef.current;
-    if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE') {
-      animationFrameRef.current = requestAnimationFrame(detectFace);
+    } catch (e) {
+      console.error("Detection Loop Error:", e);
+      // 에러 발생해도 재시도 시도 (1초 후)
+      setTimeout(() => {
+        const currentStep = stepRef.current;
+        if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE') {
+          animationFrameRef.current = requestAnimationFrame(detectFace);
+        }
+      }, 1000);
     }
   }, [faceLandmarker]); // 의존성을 최소화 (Refs 사용)
 
@@ -219,7 +230,7 @@ export default function Home() {
         frontBufferRef.current.push(measurements);
 
         setStatus("정면 스캔 중...");
-        setSubStatus(`${frontBufferRef.current.length} / ${SCAN_FRAMES}`);
+        setSubStatus(`${Math.round(frontBufferRef.current.length / SCAN_FRAMES * 100)}% 완료`);
 
         if (frontBufferRef.current.length >= SCAN_FRAMES) {
           // 정면 스캔 완료 시 스케일 팩터 고정
@@ -257,7 +268,7 @@ export default function Home() {
         profileBufferRef.current.push(profileData);
 
         setStatus("측면 스캔 중...");
-        setSubStatus(`${profileBufferRef.current.length} / ${SCAN_FRAMES}`);
+        setSubStatus(`${Math.round(profileBufferRef.current.length / SCAN_FRAMES * 100)}% 완료`);
 
         if (profileBufferRef.current.length >= SCAN_FRAMES) {
           finishMeasurement();
@@ -466,25 +477,30 @@ export default function Home() {
             </div>
 
             {/* 가이드라인 SVG */}
-            <svg className="absolute inset-0 w-full h-full opacity-30" viewBox="0 0 100 100" preserveAspectRatio="none">
-              {/* 정면 가이드 */}
+            <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 100 100" preserveAspectRatio="none">
+              {/* 정면 가이드 - 달걀형 (위가 조금 더 넓고 아래가 좁은 형태는 타원으로 표현 어려우므로 비율 조정) */}
               {(step === 'GUIDE_CHECK' || step === 'SCANNING_FRONT' || step === 'COUNTDOWN') && (
-                <ellipse cx="50" cy="50" rx="30" ry="40" fill="none" stroke="white" strokeWidth="0.5" strokeDasharray="2 2" />
+                // rx: 36, ry: 45 (0.8 비율, 조금 더 넓게)
+                <ellipse cx="50" cy="50" rx="36" ry="45" fill="none" stroke="white" strokeWidth="0.8" strokeDasharray="4 4" />
               )}
               {/* 측면 가이드 - 화살표 */}
               {(step === 'GUIDE_TURN_SIDE') && (
                 <path d="M 50 20 Q 80 20 80 50" fill="none" stroke="cyan" strokeWidth="1" markerEnd="url(#arrow)" />
               )}
             </svg>
-          </div>
-        )}
 
-        {/* 3. 카운트다운 */}
-        {step === 'COUNTDOWN' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-20">
-            <div className="text-9xl font-black text-white animate-ping drop-shadow-2xl">
-              {countdown}
-            </div>
+            {/* 카운트다운 (작게 표시) */}
+            {step === 'COUNTDOWN' && (
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-black/40 blur-xl rounded-full"></div>
+                  <div className="relative text-6xl font-light text-white/90 font-mono tracking-widest drop-shadow-lg">
+                    {countdown}
+                  </div>
+                </div>
+                <p className="text-white/60 text-xs mt-2 font-light tracking-widest uppercase">Hold Position</p>
+              </div>
+            )}
           </div>
         )}
 
