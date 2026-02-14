@@ -22,9 +22,6 @@ export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   const [step, setStep] = useState<Step>('IDLE');
-  // [교정] 루프 내부에서 최신 상태를 참조하기 위한 Ref
-  const stepRef = useRef<Step>('IDLE');
-  
   const [user, setUser] = useState<MoabomUser | null>(null);
   const [faceLandmarker, setFaceLandmarker] = useState<FaceLandmarker | null>(null);
   const [latestMeasurement, setLatestMeasurement] = useState<MeasureLog | null>(null);
@@ -43,11 +40,6 @@ export default function Home() {
   const scaleFactorRef = useRef<number>(0);
   const stableCountRef = useRef(0);
   const loopRef = useRef<number | null>(null);
-
-  // [교정] Step 상태와 Ref 동기화 (루프가 길을 잃지 않게 함)
-  useEffect(() => {
-    stepRef.current = step;
-  }, [step]);
 
   // MediaPipe 초기화
   useEffect(() => {
@@ -82,7 +74,7 @@ export default function Home() {
     loadUser();
   }, []);
 
-  // 카운트다운 로직
+  // 카운트다운
   useEffect(() => {
     if (step === 'COUNTDOWN') {
       let c = 3;
@@ -105,23 +97,16 @@ export default function Home() {
   async function startMeasurement() {
     if (!user || !faceLandmarker) return;
     
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }
-      });
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play();
-          setStep('GUIDE_CHECK');
-          setStatus("정면을 봐주세요");
-          startDetection();
-        };
-      }
-    } catch (err) {
-      console.error("Camera error:", err);
-      alert("카메라를 켤 수 없습니다.");
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+      setStep('GUIDE_CHECK');
+      setStatus("정면을 봐주세요");
+      startDetection();
     }
   }
 
@@ -134,31 +119,19 @@ export default function Home() {
     const ctx = canvas.getContext('2d');
     
     function loop() {
-      // [교정] 루프 중단 조건: COMPLETE거나 IDLE이면 종료
-      if (stepRef.current === 'COMPLETE' || stepRef.current === 'IDLE') {
-        if (loopRef.current) cancelAnimationFrame(loopRef.current);
-        return;
-      }
-
       if (!ctx || video.readyState < 2) {
         loopRef.current = requestAnimationFrame(loop);
         return;
       }
       
-      // [교정] PC 눌림 방지: 비디오의 실제 표시 크기와 캔버스 픽셀을 강제 일치시킴
-      if (canvas.width !== video.clientWidth || canvas.height !== video.clientHeight) {
-        canvas.width = video.clientWidth;
-        canvas.height = video.clientHeight;
-      }
-      
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
       const results = faceLandmarker!.detectForVideo(video, performance.now());
       
       if (results.faceLandmarks && results.faceLandmarks.length > 0) {
         const landmarks = results.faceLandmarks[0];
-        
-        // 랜드마크 그리기
         drawLandmarks(ctx, landmarks, canvas.width, canvas.height);
         
         const measurements = performMeasurement(results);
@@ -166,18 +139,18 @@ export default function Home() {
         
         if (measurements) {
           setCurrentMeasurements(measurements);
-          // [교정] stepRef.current를 직접 전달하여 최신 상태 전달
           handleStep(measurements, yaw, landmarks);
         }
       } else {
-        const curStep = stepRef.current;
-        if (curStep === 'GUIDE_CHECK' || curStep === 'GUIDE_TURN_SIDE') {
+        if (step === 'GUIDE_CHECK' || step === 'GUIDE_TURN_SIDE') {
           setSubStatus("얼굴을 찾을 수 없습니다");
           stableCountRef.current = 0;
         }
       }
       
-      loopRef.current = requestAnimationFrame(loop);
+      if (step !== 'COMPLETE' && step !== 'IDLE') {
+        loopRef.current = requestAnimationFrame(loop);
+      }
     }
     
     loop();
@@ -185,17 +158,15 @@ export default function Home() {
 
   // 단계별 처리
   function handleStep(m: FaceMeasurements, yaw: number, landmarks: any[]) {
-    const curStep = stepRef.current; // [교정] 클로저 방지: 항상 최신 Step 참조
-
-    if (curStep === 'GUIDE_CHECK') {
-      if (Math.abs(yaw) < 12) { // 오차범위 살짝 완화
+    if (step === 'GUIDE_CHECK') {
+      if (Math.abs(yaw) < 10) {
         if (!isFaceSizeValidForMeasurement(m)) {
           stableCountRef.current = 0;
-          setSubStatus("얼굴을 가이드 선에 맞춰주세요");
+          setSubStatus("얼굴을 가까이 해주세요");
           return;
         }
         stableCountRef.current++;
-        setSubStatus(`준비 중... ${Math.min(stableCountRef.current, 20)}/20`);
+        setSubStatus(`확인 중... ${Math.min(stableCountRef.current, 20)}/20`);
         
         if (stableCountRef.current > 20) {
           setStatus("측정 시작");
@@ -204,59 +175,57 @@ export default function Home() {
         }
       } else {
         stableCountRef.current = 0;
-        setSubStatus("정면을 똑바로 봐주세요");
+        setSubStatus("정면을 봐주세요");
       }
     }
     
-    if (curStep === 'SCANNING_FRONT') {
+    if (step === 'SCANNING_FRONT') {
       frontDataRef.current.push(m);
       const len = frontDataRef.current.length;
-      const pct = Math.round((len / 80) * 100); // 90프레임에서 80으로 살짝 단축
+      const pct = Math.round((len / 90) * 100);
       
-      if (len % 5 === 0) {
+      if (len % 10 === 0) {
         setProgress(pct);
-        setStatus("정면 스캔 중...");
+        setStatus("정면 스캔 중");
         setSubStatus(`${pct}%`);
       }
       
-      if (len >= 80) {
-        const avgScale = frontDataRef.current.reduce((a, c) => a + c.scaleFactor, 0) / len;
-        scaleFactorRef.current = avgScale;
+      if (len >= 90) {
+        const avg = frontDataRef.current.reduce((a, c) => a + c.scaleFactor, 0) / len;
+        scaleFactorRef.current = avg;
         setStep('GUIDE_TURN_SIDE');
-        setStatus("측면 측정 준비");
-        setSubStatus("오른쪽으로 천천히 돌려주세요 (35도 이상)");
+        setStatus("측면 측정");
+        setSubStatus("고개를 옆으로 돌려주세요");
         stableCountRef.current = 0;
         setProgress(0);
       }
     }
     
-    if (curStep === 'GUIDE_TURN_SIDE') {
-      if (Math.abs(yaw) > 30) { // 35도에서 30도로 현실적인 조정
+    if (step === 'GUIDE_TURN_SIDE') {
+      if (Math.abs(yaw) > 35) {
         stableCountRef.current++;
-        setSubStatus("각도 인식 완료! 유지하세요...");
-        if (stableCountRef.current > 8) {
+        if (stableCountRef.current > 10) {
           setStep('SCANNING_PROFILE');
           profileDataRef.current = [];
         }
       } else {
         stableCountRef.current = 0;
-        setSubStatus("고개를 더 돌려주세요");
       }
     }
     
-    if (curStep === 'SCANNING_PROFILE') {
+    if (step === 'SCANNING_PROFILE') {
       const profile = performProfileMeasurement(landmarks, scaleFactorRef.current);
       profileDataRef.current.push(profile);
       const len = profileDataRef.current.length;
-      const pct = Math.round((len / 60) * 100); // 측면은 조금 더 빨리 스캔 (60프레임)
+      const pct = Math.round((len / 90) * 100);
       
-      if (len % 5 === 0) {
+      if (len % 10 === 0) {
         setProgress(pct);
-        setStatus("측면 데이터 수집 중");
+        setStatus("측면 스캔 중");
         setSubStatus(`${pct}%`);
       }
       
-      if (len >= 60) {
+      if (len >= 90) {
         finishScan();
       }
     }
@@ -270,16 +239,14 @@ export default function Home() {
     setFinalFront(avgFront);
     setFinalProfile(avgProfile);
     setStep('COMPLETE');
-    setStatus("분석 완료");
+    setStatus("측정 완료");
     
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     }
-    if (loopRef.current) cancelAnimationFrame(loopRef.current);
   }
 
   function calculateAvgFront(data: FaceMeasurements[]): FaceMeasurements {
-    const n = data.length;
     const sum = data.reduce((a, c) => ({
       noseWidth: a.noseWidth + c.noseWidth,
       faceLength: a.faceLength + c.faceLength,
@@ -289,10 +256,11 @@ export default function Home() {
       confidence: 0
     }), { noseWidth: 0, faceLength: 0, chinAngle: 0, ipdPixels: 0, scaleFactor: 0, confidence: 0 });
     
+    const n = data.length;
     return {
-      noseWidth: Number((sum.noseWidth / n).toFixed(1)),
-      faceLength: Number((sum.faceLength / n).toFixed(1)),
-      chinAngle: Number((sum.chinAngle / n).toFixed(1)),
+      noseWidth: Math.round(sum.noseWidth / n * 10) / 10,
+      faceLength: Math.round(sum.faceLength / n * 10) / 10,
+      chinAngle: Math.round(sum.chinAngle / n * 10) / 10,
       ipdPixels: sum.ipdPixels / n,
       scaleFactor: sum.scaleFactor / n,
       confidence: 0.95
@@ -300,19 +268,19 @@ export default function Home() {
   }
 
   function calculateAvgProfile(data: ProfileMeasurements[]): ProfileMeasurements {
-    const n = data.length;
     const sum = data.reduce((a, c) => ({
       noseHeight: a.noseHeight + c.noseHeight,
       faceDepth: a.faceDepth + c.faceDepth
     }), { noseHeight: 0, faceDepth: 0 });
     
+    const n = data.length;
     return {
-      noseHeight: Number((sum.noseHeight / n).toFixed(1)),
-      faceDepth: Number((sum.faceDepth / n).toFixed(1))
+      noseHeight: Math.round(sum.noseHeight / n * 10) / 10,
+      faceDepth: Math.round(sum.faceDepth / n * 10) / 10
     };
   }
 
-  // 저장 로직 (그누보드 연동 포함)
+  // 저장
   async function handleSave() {
     if (!user || !finalFront) return;
     
@@ -332,13 +300,13 @@ export default function Home() {
     });
     
     if (result.success) {
-      alert("분석 데이터가 성공적으로 저장되었습니다.");
-      // [교정] 부모창(그누보드)으로 결과 전송
-      window.parent.postMessage({ type: 'MEASUREMENT_COMPLETE', size: size }, '*');
+      alert("저장되었습니다!");
+      window.parent.postMessage({ type: 'MEASUREMENT_COMPLETE', data: result.data }, '*');
       setLatestMeasurement(result.data!);
     }
   }
 
+  // 재측정
   function retry() {
     setStep('IDLE');
     setFinalFront(null);
@@ -346,191 +314,171 @@ export default function Home() {
     frontDataRef.current = [];
     profileDataRef.current = [];
     stableCountRef.current = 0;
-    setProgress(0);
   }
 
+  // 중단
   function stop() {
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     }
-    if (loopRef.current) cancelAnimationFrame(loopRef.current);
     setStep('IDLE');
-    setStatus("준비 완료");
+    frontDataRef.current = [];
+    profileDataRef.current = [];
+    stableCountRef.current = 0;
+    if (loopRef.current) cancelAnimationFrame(loopRef.current);
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-black text-white font-sans overflow-hidden">
-      <div className="relative w-full h-screen max-w-md mx-auto bg-gray-900 shadow-2xl">
-        {/* 비디오 레이어 */}
+    <div className="flex min-h-screen flex-col items-center justify-center bg-black text-white">
+      <div className="relative w-full h-screen max-w-md mx-auto bg-gray-900">
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${step === 'IDLE' ? 'opacity-0' : 'opacity-100'}`}
+          className={`absolute inset-0 w-full h-full object-cover ${step === 'IDLE' ? 'opacity-0' : 'opacity-100'}`}
           style={{ transform: 'scaleX(-1)' }}
         />
-        {/* 가이드 & 랜드마크 캔버스 */}
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full pointer-events-none z-10"
+          className="absolute inset-0 w-full h-full pointer-events-none"
           style={{ transform: 'scaleX(-1)' }}
         />
 
-        {/* 초기 시작 화면 */}
         {step === 'IDLE' && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-8 bg-gradient-to-b from-gray-900 via-gray-800 to-black">
-            <div className="w-20 h-20 bg-blue-600 rounded-3xl rotate-12 flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20">
-               <span className="text-4xl">🤖</span>
-            </div>
-            <h1 className="text-3xl font-black mb-3 tracking-tight">MOABOM <span className="text-blue-500">AI</span></h1>
-            <p className="text-gray-400 mb-10 text-center leading-relaxed">
-              최첨단 3D 안면 분석 기술로<br />
-              지성님께 딱 맞는 마스크를 찾아드릴게요.
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-800 to-black">
+            <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+              SmartCare AI
+            </h1>
+            <p className="text-gray-400 mb-8 text-center">
+              정확한 양압기 마스크 추천을 위해<br />3D 안면 분석을 시작합니다.
             </p>
             
-            <div className="w-full space-y-4">
-              <div className="bg-white/5 p-5 rounded-2xl border border-white/10 backdrop-blur-md">
-                <h3 className="text-sm font-bold text-blue-400 mb-3 flex items-center">
-                  <span className="mr-2">💡</span> 측정 전 확인해 주세요
-                </h3>
-                <ul className="text-xs text-gray-400 space-y-2.5">
-                  <li className="flex items-start"><span className="mr-2">1.</span> 얼굴이 밝게 보이도록 조명을 마주 봐주세요.</li>
-                  <li className="flex items-start"><span className="mr-2">2.</span> 안경이나 마스크를 잠시 벗어주세요.</li>
-                  <li className="flex items-start"><span className="mr-2">3.</span> 안내에 따라 고개를 천천히 돌려주세요.</li>
+            <div className="space-y-4 w-full max-w-xs">
+              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-300 mb-2">측정 가이드</h3>
+                <ul className="text-xs text-gray-400 space-y-2 list-disc pl-4">
+                  <li>밝은 곳에서 촬영해주세요</li>
+                  <li>모자나 안경을 벗어주세요</li>
+                  <li>정면과 측면 측정이 진행됩니다</li>
                 </ul>
               </div>
 
               <button
                 onClick={startMeasurement}
                 disabled={!user || !faceLandmarker}
-                className="w-full py-4.5 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-600 font-extrabold text-lg transition-all active:scale-95 shadow-xl shadow-blue-600/30"
+                className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 font-bold transition-all"
               >
-                {faceLandmarker ? "분석 시작하기" : "AI 엔진 로딩 중..."}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 스캔 진행 중 UI */}
-        {step !== 'IDLE' && step !== 'COMPLETE' && (
-          <div className="absolute inset-0 z-30 pointer-events-none">
-            <div className="absolute top-0 left-0 right-0 p-10 pt-16 bg-gradient-to-b from-black/90 via-black/40 to-transparent text-center">
-              <h2 className="text-xl font-extrabold tracking-tight text-white drop-shadow-md">{status}</h2>
-              <p className="text-sm text-blue-400 font-bold mt-2 animate-pulse">{subStatus}</p>
-            </div>
-
-            {/* 가이드 타원 SVG */}
-            <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-[70%] h-[55%] border-2 border-dashed border-white/30 rounded-[100px] animate-soft-pulse"></div>
-            </div>
-
-            <div className="absolute top-6 right-6 pointer-events-auto">
-              <button onClick={stop} className="w-10 h-10 rounded-full bg-black/40 hover:bg-red-500/80 flex items-center justify-center transition-colors">
-                <span className="text-lg">✕</span>
+                {faceLandmarker ? "측정 시작하기" : "시스템 로딩 중..."}
               </button>
             </div>
 
-            {step === 'COUNTDOWN' && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
-                <div className="text-9xl font-black text-white drop-shadow-2xl animate-ping">{countdown}</div>
+            {latestMeasurement && (
+              <div className="mt-8 text-xs text-center text-gray-500">
+                최근 측정: {latestMeasurement.recommended_size} 사이즈
               </div>
             )}
           </div>
         )}
 
-        {/* 실시간 수치 데이터 뱃지 */}
-        {currentMeasurements && step !== 'IDLE' && step !== 'COMPLETE' && (
-          <div className="absolute bottom-28 left-6 right-6 z-40 flex justify-between gap-2">
-            {[
-              { label: '코 너비', value: `${currentMeasurements.noseWidth}mm` },
-              { label: '얼굴 길이', value: `${currentMeasurements.faceLength}mm` },
-              { label: '턱 각도', value: `${currentMeasurements.chinAngle}°` }
-            ].map((item, i) => (
-              <div key={i} className="flex-1 bg-black/60 backdrop-blur-md border border-white/10 p-2.5 rounded-xl text-center">
-                <div className="text-[10px] text-gray-400 mb-0.5">{item.label}</div>
-                <div className="text-sm font-bold text-blue-400">{item.value}</div>
+        {step !== 'IDLE' && step !== 'COMPLETE' && (
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-0 left-0 right-0 p-8 pt-12 bg-gradient-to-b from-black/80 to-transparent text-center">
+              <h2 className="text-xl font-bold text-white">{status}</h2>
+              <p className="text-sm text-cyan-300 mt-1">{subStatus}</p>
+            </div>
+
+            <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+              {(step === 'GUIDE_CHECK' || step === 'SCANNING_FRONT' || step === 'COUNTDOWN') && (
+                <ellipse cx="50" cy="50" rx="38" ry="42" fill="none" stroke="white" strokeWidth="0.8" strokeDasharray="4 4" />
+              )}
+              {step === 'GUIDE_TURN_SIDE' && (
+                <path d="M 50 20 Q 80 20 80 50" fill="none" stroke="cyan" strokeWidth="1" />
+              )}
+            </svg>
+
+            <div className="absolute top-4 right-4 pointer-events-auto">
+              <button onClick={stop} className="px-3 py-1.5 rounded-lg bg-black/50 hover:bg-red-600/80 text-white text-xs">
+                중단
+              </button>
+            </div>
+
+            {step === 'COUNTDOWN' && (
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <div className="text-6xl font-light text-white/90">{countdown}</div>
               </div>
-            ))}
+            )}
           </div>
         )}
 
-        {/* 하단 프로그레스 바 */}
+        {currentMeasurements && step !== 'IDLE' && step !== 'COMPLETE' && (
+          <div className="absolute top-20 left-4 bg-black/70 backdrop-blur-sm text-white p-3 rounded-lg text-xs space-y-1 border border-cyan-500/30">
+            <div>코 너비: <span className="font-bold text-cyan-400">{currentMeasurements.noseWidth}mm</span></div>
+            <div>얼굴 길이: <span className="font-bold text-cyan-400">{currentMeasurements.faceLength}mm</span></div>
+            <div>턱 각도: <span className="font-bold text-cyan-400">{currentMeasurements.chinAngle}°</span></div>
+          </div>
+        )}
+
         {(step === 'SCANNING_FRONT' || step === 'SCANNING_PROFILE') && (
-          <div className="absolute bottom-12 left-8 right-8 z-50">
-            <div className="h-3 bg-gray-800 rounded-full p-0.5 border border-white/5 shadow-inner">
-              <div 
-                className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(37,99,235,0.5)]" 
-                style={{ width: `${progress}%` }} 
-              />
+          <div className="absolute bottom-10 left-10 right-10">
+            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div className="h-full bg-cyan-500 transition-all" style={{ width: `${progress}%` }} />
             </div>
           </div>
         )}
 
-        {/* 최종 결과 화면 */}
         {step === 'COMPLETE' && finalFront && finalProfile && (
-          <div className="absolute inset-0 z-50 bg-gray-900 flex flex-col p-7 overflow-y-auto">
-            <div className="flex-1 flex flex-col items-center pt-8">
-              <div className="relative mb-8">
-                <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center animate-bounce-slow">
-                  <svg className="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.5" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <div className="absolute -bottom-2 -right-2 bg-blue-600 text-[10px] px-2 py-1 rounded-lg font-bold">SUCCESS</div>
+          <div className="absolute inset-0 bg-gray-900 flex flex-col p-6">
+            <div className="flex-1 flex flex-col items-center pt-10">
+              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6">
+                <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                </svg>
               </div>
 
-              <h2 className="text-3xl font-black text-white mb-1">분석 완료!</h2>
-              <p className="text-gray-400 text-sm mb-10">지성님을 위한 최적의 사이즈입니다.</p>
+              <h2 className="text-2xl font-bold text-white mb-1">측정 완료</h2>
+              <p className="text-gray-400 text-sm mb-8">AI 분석 결과가 준비되었습니다.</p>
 
-              <div className="w-full bg-gray-800/50 rounded-[32px] p-8 border border-white/10 backdrop-blur-xl mb-6">
-                <div className="flex flex-col items-center pb-6 mb-6 border-b border-white/5">
-                  <span className="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Recommended Size</span>
-                  <span className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-blue-400 to-blue-700">
+              <div className="w-full bg-gray-800 rounded-2xl p-6 border border-gray-700 space-y-4">
+                <div className="flex justify-between items-center pb-4 border-b border-gray-700">
+                  <span className="text-gray-400">추천 사이즈</span>
+                  <span className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                     {recommendMaskSize(finalFront)}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { label: '코 너비', val: `${finalFront.noseWidth}mm` },
-                    { label: '얼굴 길이', val: `${finalFront.faceLength}mm` },
-                    { label: '코 높이', val: `${finalProfile.noseHeight}mm`, highlight: true },
-                    { label: '턱 각도', val: `${finalFront.chinAngle}°` }
-                  ].map((d, i) => (
-                    <div key={i} className="bg-white/5 p-4 rounded-2xl">
-                      <div className="text-[10px] text-gray-500 mb-1 font-bold">{d.label}</div>
-                      <div className={`text-base font-bold ${d.highlight ? 'text-blue-400' : 'text-gray-200'}`}>{d.val}</div>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="bg-black/20 p-3 rounded-lg">
+                    <div className="text-gray-500 text-xs mb-1">코 너비</div>
+                    <div className="font-semibold">{finalFront.noseWidth}mm</div>
+                  </div>
+                  <div className="bg-black/20 p-3 rounded-lg">
+                    <div className="text-gray-500 text-xs mb-1">얼굴 길이</div>
+                    <div className="font-semibold">{finalFront.faceLength}mm</div>
+                  </div>
+                  <div className="bg-black/20 p-3 rounded-lg">
+                    <div className="text-gray-500 text-xs mb-1">코 높이</div>
+                    <div className="font-semibold text-cyan-300">{finalProfile.noseHeight}mm</div>
+                  </div>
+                  <div className="bg-black/20 p-3 rounded-lg">
+                    <div className="text-gray-500 text-xs mb-1">턱 각도</div>
+                    <div className="font-semibold">{finalFront.chinAngle}°</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-4 mb-4">
-              <button onClick={retry} className="flex-1 py-4.5 rounded-2xl bg-gray-800 hover:bg-gray-700 font-bold text-gray-300 transition-colors">
-                다시 측정
+            <div className="flex gap-3 mt-6">
+              <button onClick={retry} className="flex-1 py-4 rounded-xl bg-gray-700 hover:bg-gray-600 font-bold text-white">
+                재측정
               </button>
-              <button onClick={handleSave} className="flex-[2] py-4.5 rounded-2xl bg-blue-600 hover:bg-blue-500 font-black text-white transition-transform active:scale-95">
-                결과 전송하기
+              <button onClick={handleSave} className="flex-[2] py-4 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white">
+                결과 저장하기
               </button>
             </div>
           </div>
         )}
       </div>
-      
-      <style jsx global>{`
-        @keyframes bounce-slow {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-10px); }
-        }
-        .animate-bounce-slow { animation: bounce-slow 3s infinite ease-in-out; }
-        @keyframes soft-pulse {
-          0%, 100% { border-color: rgba(255,255,255,0.2); }
-          50% { border-color: rgba(59,130,246,0.6); }
-        }
-        .animate-soft-pulse { animation: soft-pulse 2s infinite; }
-      `}</style>
     </div>
   );
 }
