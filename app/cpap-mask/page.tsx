@@ -498,9 +498,9 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-black font-sans text-moa-text">
+    <div className="flex min-h-screen flex-col items-center justify-center font-sans text-moa-text">
       {/* 메인 뷰포트 - 모바일: 전체화면, PC: 비율 유지 */}
-      <div className="relative w-full h-screen md:h-auto md:max-h-screen md:aspect-video bg-gray-900 flex flex-col items-center justify-center overflow-hidden">
+      <div className="relative w-full h-screen md:h-auto md:max-h-screen md:aspect-video flex flex-col items-center justify-center overflow-hidden">
         
         {/* 상단 프로그레스 탭 */}
         <div className="absolute top-0 left-0 right-0 z-50 glass-panel border-b border-moa-bg-secondary">
@@ -877,7 +877,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={stopCamera}
-                className="px-3 py-1.5 rounded-lg bg-black/50 hover:bg-red-600/80 text-white text-xs font-medium transition-colors flex items-center gap-1"
+                className="px-3 py-1.5 rounded-lg glass-panel hover:bg-red-600/80 text-white text-xs font-medium transition-colors flex items-center gap-1"
               >
                 <i className="ri-close-line"></i>
                 중단
@@ -888,7 +888,7 @@ export default function Home() {
             {step === 'COUNTDOWN' && (
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center">
                 <div className="relative">
-                  <div className="absolute inset-0 bg-black/40 blur-xl rounded-full"></div>
+                  <div className="absolute inset-0 opacity-20 blur-xl rounded-full"></div>
                   <div className="relative text-6xl font-light text-white/90 font-mono tracking-widest drop-shadow-lg">
                     {countdown}
                   </div>
@@ -1028,32 +1028,32 @@ export default function Home() {
                   </h3>
                   <div className="space-y-3 text-sm">
                     {/* 정면 측정값 */}
-                    <div className="border-b border-gray-700 pb-3">
+                    <div className="border-b border-moa-bg-secondary pb-3">
                       <h4 className="text-xs text-moa-text-tertiary mb-2 font-semibold">정면 측정</h4>
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="bg-moa-bg-tertiary p-3 rounded-lg">
                           <div className="text-moa-text-tertiary text-xs mb-1">코 너비</div>
                           <div className="font-semibold text-moa-text">{finalResult.front.noseWidth}mm</div>
                         </div>
-                        <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="bg-moa-bg-tertiary p-3 rounded-lg">
                           <div className="text-moa-text-tertiary text-xs mb-1">얼굴 길이</div>
                           <div className="font-semibold text-moa-text">{finalResult.front.faceLength}mm</div>
                         </div>
-                        <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="bg-moa-bg-tertiary p-3 rounded-lg">
                           <div className="text-moa-text-tertiary text-xs mb-1">얼굴 폭</div>
                           <div className="font-semibold text-moa-text">{finalResult.front.faceWidth}mm</div>
                         </div>
-                        <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="bg-moa-bg-tertiary p-3 rounded-lg">
                           <div className="text-moa-text-tertiary text-xs mb-1">미간 너비</div>
                           <div className="font-semibold text-moa-text">{finalResult.front.bridgeWidth}mm</div>
                         </div>
-                        <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="bg-moa-bg-tertiary p-3 rounded-lg">
                           <div className="text-moa-text-tertiary text-xs mb-1">인중 길이</div>
-                          <div className="font-semibold text-cyan-300">{finalResult.front.philtrumLength}mm</div>
+                          <div className="font-semibold text-moa-main">{finalResult.front.philtrumLength}mm</div>
                         </div>
-                        <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="bg-moa-bg-tertiary p-3 rounded-lg">
                           <div className="text-moa-text-tertiary text-xs mb-1">입 너비</div>
-                          <div className="font-semibold text-cyan-300">{finalResult.front.mouthWidth}mm</div>
+                          <div className="font-semibold text-moa-main">{finalResult.front.mouthWidth}mm</div>
                         </div>
                       </div>
                     </div>
@@ -1062,13 +1062,13 @@ export default function Home() {
                     <div>
                       <h4 className="text-xs text-moa-text-tertiary mb-2 font-semibold">측면 측정</h4>
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="bg-moa-bg-tertiary p-3 rounded-lg">
                           <div className="text-moa-text-tertiary text-xs mb-1">코 높이</div>
-                          <div className="font-semibold text-emerald-300">{finalResult.profile.noseHeight}mm</div>
+                          <div className="font-semibold text-moa-main">{finalResult.profile.noseHeight}mm</div>
                         </div>
-                        <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="bg-moa-bg-tertiary p-3 rounded-lg">
                           <div className="text-moa-text-tertiary text-xs mb-1">턱 돌출</div>
-                          <div className="font-semibold text-emerald-300">{finalResult.profile.jawProjection}mm</div>
+                          <div className="font-semibold text-moa-main">{finalResult.profile.jawProjection}mm</div>
                         </div>
                       </div>
                     </div>
