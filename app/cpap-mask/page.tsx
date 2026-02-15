@@ -170,8 +170,8 @@ export default function Home() {
       if (results.faceLandmarks && results.faceLandmarks.length > 0) {
         const landmarks = results.faceLandmarks[0];
 
-        // 기본 드로잉
-        drawLandmarks(ctx, landmarks, canvas.width, canvas.height);
+        // 기본 드로잉 (얼굴 감지됨)
+        drawLandmarks(ctx, landmarks, canvas.width, canvas.height, true);
 
         // 측정값 계산
         const measurements = performMeasurement(results);
@@ -182,7 +182,9 @@ export default function Home() {
           processStep(currentStep, measurements, yaw, landmarks);
         }
       } else {
-        // 얼굴 없음 처리
+        // 얼굴 없음 - 가이드만 표시
+        drawLandmarks(ctx, [], canvas.width, canvas.height, false);
+        
         const currentStep = stepRef.current;
         if (currentStep === 'GUIDE_CHECK' || currentStep === 'GUIDE_TURN_SIDE') {
           setSubStatus("얼굴을 찾을 수 없습니다");

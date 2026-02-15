@@ -276,26 +276,46 @@ export function drawLandmarks(
   ctx: CanvasRenderingContext2D,
   landmarks: any[],
   width: number,
-  height: number
+  height: number,
+  faceDetected: boolean = true // 얼굴 감지 여부
 ) {
-  // 1. 얼굴 가이드 오버레이 - 가운데, 짧은 쪽 기준으로 비율 맞춤 (상하로 꽉 차지 않음)
+  // 1. 얼굴 가이드 오버레이
   const faceCenter = { x: width / 2, y: height / 2 };
   const short = Math.min(width, height);
   const guideW = short * 0.36;
   const guideH = short * 0.42;
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([10, 5]);
+  // 얼굴 감지 여부에 따라 스타일 변경
+  if (faceDetected) {
+    // 얼굴 감지됨 - 굵은 실선
+    ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([]);
+  } else {
+    // 얼굴 없음 - 얇은 점선
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 5]);
+  }
+
   ctx.beginPath();
   ctx.ellipse(faceCenter.x, faceCenter.y, guideW, guideH, 0, 0, 2 * Math.PI);
   ctx.stroke();
   ctx.setLineDash([]);
 
+  // 텍스트는 좌우 반전 없이 정상으로 표시
+  ctx.save();
+  ctx.scale(-1, 1); // 텍스트만 다시 반전시켜서 정상으로
   ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
   ctx.font = '14px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('얼굴을 가이드 안에 맞춰주세요', faceCenter.x, faceCenter.y - guideH - 20);
+  ctx.fillText('얼굴을 가이드 안에 맞춰주세요', -faceCenter.x, faceCenter.y - guideH - 20);
+  ctx.restore();
+
+  // 얼굴이 감지되지 않았으면 여기서 종료
+  if (!faceDetected) {
+    return;
+  }
 
   // 2. 모든 랜드마크를 작은 흰색 반투명 점으로 표시 (크기와 진하기 증가)
   ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
@@ -381,15 +401,7 @@ export function drawLandmarks(
   ctx.lineTo(chin.x * width, chin.y * height);
   ctx.stroke();
 
-  // 7. 광대뼈 너비
-  const cheekLeft = landmarks[LANDMARKS.CHEEK_LEFT];
-  const cheekRight = landmarks[LANDMARKS.CHEEK_RIGHT];
-  ctx.beginPath();
-  ctx.moveTo(cheekLeft.x * width, cheekLeft.y * height);
-  ctx.lineTo(cheekRight.x * width, cheekRight.y * height);
-  ctx.stroke();
-
-  // 8. 얼굴 너비 (귀 근처)
+  // 7. 얼굴 너비 (귀 근처) - 양쪽 끝에 동그라미 추가
   const faceLeft = landmarks[LANDMARKS.FACE_LEFT];
   const faceRight = landmarks[LANDMARKS.FACE_RIGHT];
   ctx.beginPath();
@@ -397,7 +409,22 @@ export function drawLandmarks(
   ctx.lineTo(faceRight.x * width, faceRight.y * height);
   ctx.stroke();
 
-  // 9. 주요 포인트 강조 (더 크고 밝게)
+  // 얼굴 너비 양쪽 끝 동그라미
+  ctx.fillStyle = 'rgba(0, 255, 255, 1)';
+  ctx.shadowColor = 'rgba(0, 255, 255, 0.8)';
+  ctx.shadowBlur = 10;
+  
+  ctx.beginPath();
+  ctx.arc(faceLeft.x * width, faceLeft.y * height, 5, 0, 2 * Math.PI);
+  ctx.fill();
+  
+  ctx.beginPath();
+  ctx.arc(faceRight.x * width, faceRight.y * height, 5, 0, 2 * Math.PI);
+  ctx.fill();
+  
+  ctx.shadowBlur = 0;
+
+  // 8. 주요 포인트 강조 (더 크고 밝게)
   ctx.fillStyle = 'rgba(0, 255, 255, 1)';
   const keyPoints = [
     LANDMARKS.LEFT_PUPIL,
@@ -407,8 +434,6 @@ export function drawLandmarks(
     LANDMARKS.NOSE_TIP,
     LANDMARKS.FACE_TOP,
     LANDMARKS.CHIN,
-    LANDMARKS.CHEEK_LEFT,
-    LANDMARKS.CHEEK_RIGHT,
   ];
 
   keyPoints.forEach(index => {
