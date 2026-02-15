@@ -28,6 +28,12 @@ export const LANDMARKS = {
   NOSE_RIGHT: 327,
   NOSE_BOTTOM: 2,
 
+  // 입
+  MOUTH_LEFT: 61,
+  MOUTH_RIGHT: 291,
+  UPPER_LIP_TOP: 13,
+  LOWER_LIP_BOTTOM: 14,
+
   // 얼굴 윤곽
   FACE_TOP: 10,
   FACE_BOTTOM: 152,
@@ -119,7 +125,63 @@ export function measureFaceLength(landmarks: any[], scaleFactor: number, width: 
 }
 
 /**
- * 턱 각도 계산 (도)
+ * 얼굴 폭 측정 (mm) - 귀~귀
+ */
+export function measureFaceWidth(landmarks: any[], scaleFactor: number, width: number, height: number): number {
+  const faceLeft = landmarks[LANDMARKS.FACE_LEFT];
+  const faceRight = landmarks[LANDMARKS.FACE_RIGHT];
+  
+  const leftPixel = { x: faceLeft.x * width, y: faceLeft.y * height };
+  const rightPixel = { x: faceRight.x * width, y: faceRight.y * height };
+  
+  const widthPixels = calculateDistance(leftPixel, rightPixel);
+  return widthPixels * scaleFactor;
+}
+
+/**
+ * 인중 길이 측정 (mm) - 코 밑~윗입술
+ */
+export function measurePhiltrumLength(landmarks: any[], scaleFactor: number, width: number, height: number): number {
+  const noseBottom = landmarks[LANDMARKS.NOSE_BOTTOM];
+  const upperLip = landmarks[LANDMARKS.UPPER_LIP_TOP];
+  
+  const nosePixel = { x: noseBottom.x * width, y: noseBottom.y * height };
+  const lipPixel = { x: upperLip.x * width, y: upperLip.y * height };
+  
+  const lengthPixels = calculateDistance(nosePixel, lipPixel);
+  return lengthPixels * scaleFactor;
+}
+
+/**
+ * 입 너비 측정 (mm) - 풀페이스 마스크용
+ */
+export function measureMouthWidth(landmarks: any[], scaleFactor: number, width: number, height: number): number {
+  const mouthLeft = landmarks[LANDMARKS.MOUTH_LEFT];
+  const mouthRight = landmarks[LANDMARKS.MOUTH_RIGHT];
+  
+  const leftPixel = { x: mouthLeft.x * width, y: mouthLeft.y * height };
+  const rightPixel = { x: mouthRight.x * width, y: mouthRight.y * height };
+  
+  const widthPixels = calculateDistance(leftPixel, rightPixel);
+  return widthPixels * scaleFactor;
+}
+
+/**
+ * 미간 너비 측정 (mm) - 콧대 압박 평가용
+ */
+export function measureBridgeWidth(landmarks: any[], scaleFactor: number, width: number, height: number): number {
+  const leftEye = landmarks[LANDMARKS.LEFT_EYE_INNER];
+  const rightEye = landmarks[LANDMARKS.RIGHT_EYE_INNER];
+  
+  const leftPixel = { x: leftEye.x * width, y: leftEye.y * height };
+  const rightPixel = { x: rightEye.x * width, y: rightEye.y * height };
+  
+  const widthPixels = calculateDistance(leftPixel, rightPixel);
+  return widthPixels * scaleFactor;
+}
+
+/**
+ * 턱 각도 계산 (도) - DEPRECATED: 마스크 선정에 불필요
  */
 export function measureChinAngle(landmarks: any[]): number {
   const chin = landmarks[LANDMARKS.CHIN];
@@ -158,7 +220,10 @@ export interface FaceMeasurements {
   scaleFactor: number;
   noseWidth: number;
   faceLength: number;
-  chinAngle: number;
+  faceWidth: number;
+  philtrumLength: number;
+  mouthWidth: number;
+  bridgeWidth: number;
   confidence: number;
 }
 
@@ -178,15 +243,21 @@ export function performMeasurement(result: FaceLandmarkerResult, width: number, 
   // 3. 각 부위 측정
   const noseWidth = measureNoseWidth(landmarks, scaleFactor, width, height);
   const faceLength = measureFaceLength(landmarks, scaleFactor, width, height);
-  const chinAngle = measureChinAngle(landmarks);
+  const faceWidth = measureFaceWidth(landmarks, scaleFactor, width, height);
+  const philtrumLength = measurePhiltrumLength(landmarks, scaleFactor, width, height);
+  const mouthWidth = measureMouthWidth(landmarks, scaleFactor, width, height);
+  const bridgeWidth = measureBridgeWidth(landmarks, scaleFactor, width, height);
 
   return {
     ipdPixels,
     scaleFactor,
-    noseWidth: Math.round(noseWidth * 10) / 10, // 소수점 1자리
+    noseWidth: Math.round(noseWidth * 10) / 10,
     faceLength: Math.round(faceLength * 10) / 10,
-    chinAngle: Math.round(chinAngle * 10) / 10,
-    confidence: 0.95, // MediaPipe는 자체 confidence 제공
+    faceWidth: Math.round(faceWidth * 10) / 10,
+    philtrumLength: Math.round(philtrumLength * 10) / 10,
+    mouthWidth: Math.round(mouthWidth * 10) / 10,
+    bridgeWidth: Math.round(bridgeWidth * 10) / 10,
+    confidence: 0.95,
   };
 }
 
@@ -232,46 +303,71 @@ export function estimateYaw(landmarks: any[]): number {
 }
 
 /**
- * 측면(Profile) 측정 - 코 높이/깊이
- * - 사용자가 측면을 보고 있을 때 사용
- * - 코 끝과 얼굴 평면(귀쪽) 거리 측정
+ * 측면(Profile) 측정 - 코 높이/턱 돌출
  */
 export interface ProfileMeasurements {
-  noseHeight: number; // 코 높이 (깊이)
-  faceDepth: number;  // 얼굴 깊이 (귀~코) - 참고용
+  noseHeight: number;
+  jawProjection: number;
 }
 
 export function performProfileMeasurement(landmarks: any[], scaleFactor: number, width: number, height: number): ProfileMeasurements {
   const noseTip = landmarks[LANDMARKS.NOSE_TIP];
   const noseBottom = landmarks[LANDMARKS.NOSE_BOTTOM];
+  const chin = landmarks[LANDMARKS.CHIN];
+  const noseBridge = landmarks[LANDMARKS.NOSE_BRIDGE];
 
   // 정규화된 좌표를 픽셀로 변환
   const tipPixel = { x: noseTip.x * width, y: noseTip.y * height };
   const bottomPixel = { x: noseBottom.x * width, y: noseBottom.y * height };
+  const chinPixel = { x: chin.x * width, y: chin.y * height };
+  const bridgePixel = { x: noseBridge.x * width, y: noseBridge.y * height };
 
-  // 측면 뷰에서 '코 높이' 추정
+  // 코 높이: 코 끝과 인중 사이 거리
   const noseProjectionMax = calculateDistance(tipPixel, bottomPixel) * scaleFactor;
+
+  // 턱 돌출: 턱 끝과 미간의 수평 거리 (측면에서 x축 차이)
+  const jawProjectionPixels = Math.abs(chinPixel.x - bridgePixel.x);
+  const jawProjection = jawProjectionPixels * scaleFactor;
 
   return {
     noseHeight: Math.round(noseProjectionMax * 10) / 10,
-    faceDepth: 0 // 현재는 신뢰할 수 없는 값
+    jawProjection: Math.round(jawProjection * 10) / 10
   };
 }
 
 /**
- * 마스크 사이즈 추천
+ * 마스크 사이즈 추천 - 개선된 알고리즘
  */
 export function recommendMaskSize(measurements: FaceMeasurements): string {
-  const { noseWidth, faceLength } = measurements;
+  const { noseWidth, faceLength, faceWidth, mouthWidth } = measurements;
 
-  // 간단한 추천 로직 (실제로는 더 복잡한 알고리즘 필요)
-  if (noseWidth < 35 && faceLength < 180) {
-    return 'S';
-  } else if (noseWidth < 40 && faceLength < 200) {
-    return 'M';
-  } else {
-    return 'L';
-  }
+  // 복합 점수 계산 (여러 측정값 고려)
+  let score = 0;
+
+  // 코 너비 점수
+  if (noseWidth < 35) score += 1;
+  else if (noseWidth < 40) score += 2;
+  else score += 3;
+
+  // 얼굴 길이 점수
+  if (faceLength < 180) score += 1;
+  else if (faceLength < 210) score += 2;
+  else score += 3;
+
+  // 얼굴 폭 점수
+  if (faceWidth < 130) score += 1;
+  else if (faceWidth < 150) score += 2;
+  else score += 3;
+
+  // 입 너비 점수 (풀페이스 마스크용)
+  if (mouthWidth < 45) score += 1;
+  else if (mouthWidth < 55) score += 2;
+  else score += 3;
+
+  // 총점 기준 사이즈 결정
+  if (score <= 6) return 'S';
+  else if (score <= 10) return 'M';
+  else return 'L';
 }
 
 /**
@@ -342,18 +438,34 @@ export class MeasurementBuffer<T extends FaceMeasurements | ProfileMeasurements>
         return {
           noseWidth: acc.noseWidth + m.noseWidth,
           faceLength: acc.faceLength + m.faceLength,
-          chinAngle: acc.chinAngle + m.chinAngle,
+          faceWidth: acc.faceWidth + m.faceWidth,
+          philtrumLength: acc.philtrumLength + m.philtrumLength,
+          mouthWidth: acc.mouthWidth + m.mouthWidth,
+          bridgeWidth: acc.bridgeWidth + m.bridgeWidth,
           ipdPixels: acc.ipdPixels + m.ipdPixels,
           scaleFactor: acc.scaleFactor + m.scaleFactor,
           confidence: acc.confidence
         };
-      }, { noseWidth: 0, faceLength: 0, chinAngle: 0, ipdPixels: 0, scaleFactor: 0, confidence: 0 });
+      }, { 
+        noseWidth: 0, 
+        faceLength: 0, 
+        faceWidth: 0,
+        philtrumLength: 0,
+        mouthWidth: 0,
+        bridgeWidth: 0,
+        ipdPixels: 0, 
+        scaleFactor: 0, 
+        confidence: 0 
+      });
 
       const count = this.buffer.length;
       return {
         noseWidth: Math.round(sum.noseWidth / count * 10) / 10,
         faceLength: Math.round(sum.faceLength / count * 10) / 10,
-        chinAngle: Math.round(sum.chinAngle / count * 10) / 10,
+        faceWidth: Math.round(sum.faceWidth / count * 10) / 10,
+        philtrumLength: Math.round(sum.philtrumLength / count * 10) / 10,
+        mouthWidth: Math.round(sum.mouthWidth / count * 10) / 10,
+        bridgeWidth: Math.round(sum.bridgeWidth / count * 10) / 10,
         ipdPixels: sum.ipdPixels / count,
         scaleFactor: sum.scaleFactor / count,
         confidence: 0.95
@@ -366,14 +478,14 @@ export class MeasurementBuffer<T extends FaceMeasurements | ProfileMeasurements>
         const m = cur as ProfileMeasurements;
         return {
           noseHeight: acc.noseHeight + m.noseHeight,
-          faceDepth: acc.faceDepth + m.faceDepth
+          jawProjection: acc.jawProjection + m.jawProjection
         };
-      }, { noseHeight: 0, faceDepth: 0 });
+      }, { noseHeight: 0, jawProjection: 0 });
 
       const count = this.buffer.length;
       return {
         noseHeight: Math.round(sum.noseHeight / count * 10) / 10,
-        faceDepth: Math.round(sum.faceDepth / count * 10) / 10
+        jawProjection: Math.round(sum.jawProjection / count * 10) / 10
       } as T;
     }
 

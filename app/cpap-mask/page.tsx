@@ -408,7 +408,12 @@ export default function Home() {
       user_name: user.mb_nick,
       nose_width: finalResult.front.noseWidth,
       face_length: finalResult.front.faceLength,
-      chin_angle: finalResult.front.chinAngle,
+      face_width: finalResult.front.faceWidth,
+      philtrum_length: finalResult.front.philtrumLength,
+      mouth_width: finalResult.front.mouthWidth,
+      bridge_width: finalResult.front.bridgeWidth,
+      nose_height: finalResult.profile.noseHeight,
+      jaw_projection: finalResult.profile.jawProjection,
       recommended_size: recommendedSize,
       measurement_data: {
         timestamp: new Date().toISOString(),
@@ -584,22 +589,51 @@ export default function Home() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="bg-black/20 p-3 rounded-lg">
-                    <div className="text-gray-500 text-xs mb-1">코 너비</div>
-                    <div className="font-semibold">{finalResult.front.noseWidth}mm</div>
+                <div className="space-y-3 text-sm">
+                  {/* 정면 측정값 */}
+                  <div className="border-b border-gray-700 pb-3">
+                    <h3 className="text-xs text-gray-500 mb-2 font-semibold">정면 측정</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="text-gray-500 text-xs mb-1">코 너비</div>
+                        <div className="font-semibold">{finalResult.front.noseWidth}mm</div>
+                      </div>
+                      <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="text-gray-500 text-xs mb-1">얼굴 길이</div>
+                        <div className="font-semibold">{finalResult.front.faceLength}mm</div>
+                      </div>
+                      <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="text-gray-500 text-xs mb-1">얼굴 폭</div>
+                        <div className="font-semibold">{finalResult.front.faceWidth}mm</div>
+                      </div>
+                      <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="text-gray-500 text-xs mb-1">미간 너비</div>
+                        <div className="font-semibold">{finalResult.front.bridgeWidth}mm</div>
+                      </div>
+                      <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="text-gray-500 text-xs mb-1">인중 길이</div>
+                        <div className="font-semibold text-cyan-300">{finalResult.front.philtrumLength}mm</div>
+                      </div>
+                      <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="text-gray-500 text-xs mb-1">입 너비</div>
+                        <div className="font-semibold text-cyan-300">{finalResult.front.mouthWidth}mm</div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-black/20 p-3 rounded-lg">
-                    <div className="text-gray-500 text-xs mb-1">얼굴 길이</div>
-                    <div className="font-semibold">{finalResult.front.faceLength}mm</div>
-                  </div>
-                  <div className="bg-black/20 p-3 rounded-lg">
-                    <div className="text-gray-500 text-xs mb-1">코 높이 (측면)</div>
-                    <div className="font-semibold text-cyan-300">{finalResult.profile.noseHeight}mm</div>
-                  </div>
-                  <div className="bg-black/20 p-3 rounded-lg">
-                    <div className="text-gray-500 text-xs mb-1">턱 각도</div>
-                    <div className="font-semibold">{finalResult.front.chinAngle}°</div>
+
+                  {/* 측면 측정값 */}
+                  <div>
+                    <h3 className="text-xs text-gray-500 mb-2 font-semibold">측면 측정</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="text-gray-500 text-xs mb-1">코 높이</div>
+                        <div className="font-semibold text-emerald-300">{finalResult.profile.noseHeight}mm</div>
+                      </div>
+                      <div className="bg-black/20 p-3 rounded-lg">
+                        <div className="text-gray-500 text-xs mb-1">턱 돌출</div>
+                        <div className="font-semibold text-emerald-300">{finalResult.profile.jawProjection}mm</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

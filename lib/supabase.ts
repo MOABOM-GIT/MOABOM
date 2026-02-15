@@ -22,7 +22,12 @@ export interface MeasureLog {
   user_name: string
   nose_width?: number
   face_length?: number
-  chin_angle?: number
+  face_width?: number
+  philtrum_length?: number
+  mouth_width?: number
+  bridge_width?: number
+  nose_height?: number
+  jaw_projection?: number
   recommended_size?: string
   measurement_data?: any
   created_at?: string
