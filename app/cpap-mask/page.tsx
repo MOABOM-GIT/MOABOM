@@ -494,7 +494,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-black font-sans text-white">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-black font-sans text-moa-text">
       {/* 메인 뷰포트 - 모바일: 전체화면, PC: 비율 유지 */}
       <div className="relative w-full h-screen md:h-auto md:max-h-screen md:aspect-video bg-gray-900 flex flex-col items-center justify-center overflow-hidden">
         
@@ -502,9 +502,9 @@ export default function Home() {
         <div className="absolute top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm border-b border-gray-700">
           <div className="flex items-center justify-center px-4 py-3">
             {[
-              { phase: 1, label: '설문', icon: '📋' },
-              { phase: 2, label: '안면분석', icon: '📸' },
-              { phase: 3, label: '결과', icon: '✓' }
+              { phase: 1, label: '설문', icon: 'ri-survey-line' },
+              { phase: 2, label: '안면분석', icon: 'ri-scan-line' },
+              { phase: 3, label: '결과', icon: 'ri-check-line' }
             ].map(({ phase, label, icon }, idx) => {
               const currentPhase = getCurrentPhase();
               const isActive = currentPhase === phase;
@@ -517,13 +517,13 @@ export default function Home() {
                       isCompleted 
                         ? 'bg-green-600 text-white' 
                         : isActive 
-                          ? 'bg-blue-600 text-white ring-4 ring-blue-600/30' 
+                          ? 'bg-moa-main text-white ring-4 ring-moa-main-light' 
                           : 'bg-gray-700 text-gray-400'
                     }`}>
-                      {isCompleted ? '✓' : icon}
+                      <i className={isCompleted ? 'ri-check-line' : icon}></i>
                     </div>
                     <span className={`text-xs mt-1 font-medium ${
-                      isActive ? 'text-blue-400' : isCompleted ? 'text-green-400' : 'text-gray-500'
+                      isActive ? 'text-moa-main' : isCompleted ? 'text-green-400' : 'text-gray-500'
                     }`}>
                       {label}
                     </span>
@@ -563,23 +563,25 @@ export default function Home() {
             {/* 스크롤 가능한 컨텐츠 영역 */}
             <div className="flex-1 overflow-y-auto pt-24 pb-6 px-6">
               <div className="flex flex-col items-center">
-                <h1 className="text-2xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+                <h1 className="text-2xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-moa-main to-emerald-400">
                   SmartCare AI
                 </h1>
-                <p className="text-gray-400 mb-6 text-center text-sm">
+                <p className="text-moa-text-secondary mb-6 text-center text-sm">
                   정확한 마스크 추천을 위해 몇 가지 질문에 답해주세요
                 </p>
 
             <div className="w-full max-w-md space-y-6">
               {/* 성별 */}
-              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                <h3 className="text-sm font-semibold text-gray-300 mb-3">성별</h3>
+              <div className="glass-panel p-4">
+                <h3 className="text-sm font-semibold text-moa-text-secondary mb-3 flex items-center gap-2">
+                  <i className="ri-user-line"></i> 성별
+                </h3>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setUserProfile({...userProfile, gender: 'male'})}
                     className={`flex-1 py-3 rounded-lg font-medium transition-all ${
                       userProfile.gender === 'male' 
-                        ? 'bg-blue-600 text-white' 
+                        ? 'bg-moa-main text-white' 
                         : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                     }`}
                   >
@@ -589,7 +591,7 @@ export default function Home() {
                     onClick={() => setUserProfile({...userProfile, gender: 'female'})}
                     className={`flex-1 py-3 rounded-lg font-medium transition-all ${
                       userProfile.gender === 'female' 
-                        ? 'bg-blue-600 text-white' 
+                        ? 'bg-moa-main text-white' 
                         : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                     }`}
                   >
@@ -599,8 +601,10 @@ export default function Home() {
               </div>
 
               {/* 연령대 */}
-              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                <h3 className="text-sm font-semibold text-gray-300 mb-3">연령대</h3>
+              <div className="glass-panel p-4">
+                <h3 className="text-sm font-semibold text-moa-text-secondary mb-3 flex items-center gap-2">
+                  <i className="ri-calendar-line"></i> 연령대
+                </h3>
                 <div className="grid grid-cols-3 gap-2">
                   {(['20s', '30s', '40s', '50s', '60+'] as const).map((age) => (
                     <button
@@ -608,7 +612,7 @@ export default function Home() {
                       onClick={() => setUserProfile({...userProfile, ageGroup: age})}
                       className={`py-2 rounded-lg text-sm font-medium transition-all ${
                         userProfile.ageGroup === age 
-                          ? 'bg-blue-600 text-white' 
+                          ? 'bg-moa-main text-white' 
                           : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                       }`}
                     >
@@ -619,8 +623,10 @@ export default function Home() {
               </div>
 
               {/* 수면 습관 */}
-              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                <h3 className="text-sm font-semibold text-gray-300 mb-3">😴 수면 중 뒤척임</h3>
+              <div className="glass-panel p-4">
+                <h3 className="text-sm font-semibold text-moa-text-secondary mb-3 flex items-center gap-2">
+                  <i className="ri-zzz-line"></i> 수면 중 뒤척임
+                </h3>
                 <div className="flex gap-3">
                   {(['low', 'medium', 'high'] as const).map((level) => (
                     <button
@@ -628,7 +634,7 @@ export default function Home() {
                       onClick={() => setUserProfile({...userProfile, tossing: level})}
                       className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all ${
                         userProfile.tossing === level 
-                          ? 'bg-blue-600 text-white' 
+                          ? 'bg-moa-main text-white' 
                           : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                       }`}
                     >
@@ -639,14 +645,16 @@ export default function Home() {
               </div>
 
               {/* 구강호흡 */}
-              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                <h3 className="text-sm font-semibold text-gray-300 mb-3">💨 수면 중 구강호흡</h3>
+              <div className="glass-panel p-4">
+                <h3 className="text-sm font-semibold text-moa-text-secondary mb-3 flex items-center gap-2">
+                  <i className="ri-lungs-line"></i> 수면 중 구강호흡
+                </h3>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setUserProfile({...userProfile, mouthBreathing: true})}
                     className={`flex-1 py-3 rounded-lg font-medium transition-all ${
                       userProfile.mouthBreathing 
-                        ? 'bg-blue-600 text-white' 
+                        ? 'bg-moa-main text-white' 
                         : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                     }`}
                   >
@@ -656,7 +664,7 @@ export default function Home() {
                     onClick={() => setUserProfile({...userProfile, mouthBreathing: false})}
                     className={`flex-1 py-3 rounded-lg font-medium transition-all ${
                       !userProfile.mouthBreathing 
-                        ? 'bg-blue-600 text-white' 
+                        ? 'bg-moa-main text-white' 
                         : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                     }`}
                   >
@@ -666,8 +674,10 @@ export default function Home() {
               </div>
 
               {/* 압력 수치 */}
-              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                <h3 className="text-sm font-semibold text-gray-300 mb-3">🌬️ 양압기 압력 (cmH2O)</h3>
+              <div className="glass-panel p-4">
+                <h3 className="text-sm font-semibold text-moa-text-secondary mb-3 flex items-center gap-2">
+                  <i className="ri-windy-line"></i> 양압기 압력 (cmH2O)
+                </h3>
                 <div className="flex gap-3">
                   {(['low', 'medium', 'high'] as const).map((level) => (
                     <button
@@ -675,7 +685,7 @@ export default function Home() {
                       onClick={() => setUserProfile({...userProfile, pressure: level})}
                       className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all ${
                         userProfile.pressure === level 
-                          ? 'bg-blue-600 text-white' 
+                          ? 'bg-moa-main text-white' 
                           : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                       }`}
                     >
@@ -686,15 +696,17 @@ export default function Home() {
               </div>
 
               {/* 선호 마스크 */}
-              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                <h3 className="text-sm font-semibold text-gray-300 mb-2">🎭 선호 마스크 타입 (복수선택)</h3>
-                <p className="text-xs text-gray-500 mb-3">관심있는 타입을 모두 선택하세요</p>
+              <div className="glass-panel p-4">
+                <h3 className="text-sm font-semibold text-moa-text-secondary mb-2 flex items-center gap-2">
+                  <i className="ri-mask-line"></i> 선호 마스크 타입 (복수선택)
+                </h3>
+                <p className="text-xs text-moa-text-tertiary mb-3">관심있는 타입을 모두 선택하세요</p>
                 <div className="space-y-2">
                   {[
-                    { type: 'nasal' as const, label: '나잘 (코만 덮음)', desc: '청장년층에 적합' },
-                    { type: 'pillow' as const, label: '필로우 (콧구멍만)', desc: '가볍고 편안함, 저압력용' },
-                    { type: 'full' as const, label: '풀페이스 (코+입)', desc: '구강호흡자, 중노년층' }
-                  ].map(({ type, label, desc }) => (
+                    { type: 'nasal' as const, label: '나잘 (코만 덮음)', desc: '청장년층에 적합', icon: 'ri-nose-line' },
+                    { type: 'pillow' as const, label: '필로우 (콧구멍만)', desc: '가볍고 편안함, 저압력용', icon: 'ri-contrast-drop-line' },
+                    { type: 'full' as const, label: '풀페이스 (코+입)', desc: '구강호흡자, 중노년층', icon: 'ri-user-smile-line' }
+                  ].map(({ type, label, desc, icon }) => (
                     <button
                       key={type}
                       onClick={() => {
@@ -706,19 +718,20 @@ export default function Home() {
                       }}
                       className={`w-full p-3 rounded-lg text-left transition-all ${
                         userProfile.preferredTypes.includes(type)
-                          ? 'bg-blue-600 text-white border-2 border-blue-400' 
+                          ? 'bg-moa-main text-white border-2 border-moa-main-light' 
                           : 'bg-gray-700 text-gray-300 hover:bg-gray-600 border-2 border-transparent'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-sm">{label}</div>
-                          <div className="text-xs opacity-70 mt-0.5">{desc}</div>
+                        <div className="flex items-center gap-2">
+                          <i className={icon}></i>
+                          <div>
+                            <div className="font-medium text-sm">{label}</div>
+                            <div className="text-xs opacity-70 mt-0.5">{desc}</div>
+                          </div>
                         </div>
                         {userProfile.preferredTypes.includes(type) && (
-                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
+                          <i className="ri-check-line text-lg"></i>
                         )}
                       </div>
                     </button>
@@ -732,9 +745,9 @@ export default function Home() {
                   setStep('IDLE');
                   setStatus('준비 완료');
                 }}
-                className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 font-bold text-white shadow-lg transition-all active:scale-95"
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-moa-main to-emerald-600 hover:opacity-90 font-bold text-white shadow-moa-color-1 transition-all active:scale-95 flex items-center justify-center gap-2"
               >
-                다음: 얼굴 측정 →
+                다음: 얼굴 측정 <i className="ri-arrow-right-line"></i>
               </button>
             </div>
               </div>
@@ -747,33 +760,60 @@ export default function Home() {
           <div className="absolute inset-0 flex flex-col bg-gradient-to-b from-gray-800 to-black">
             {/* 스크롤 가능한 컨텐츠 영역 */}
             <div className="flex-1 overflow-y-auto pt-24 pb-6 px-6 flex flex-col items-center justify-center">
-            <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+            <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-moa-main to-emerald-400">
               SmartCare AI
             </h1>
-            <p className="text-gray-400 mb-8 text-center max-w-xs">
+            <p className="text-moa-text-secondary mb-8 text-center max-w-xs">
               정확한 양압기 마스크 추천을 위해<br />3D 안면 분석을 시작합니다.
             </p>
             <div className="space-y-4 w-full max-w-xs">
-              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                <h3 className="text-sm font-semibold text-gray-300 mb-2">측정 가이드</h3>
-                <ul className="text-xs text-gray-400 space-y-2 list-disc pl-4">
-                  <li>밝은 곳에서 촬영해주세요</li>
-                  <li>모자나 안경을 벗어주세요</li>
-                  <li>정면과 측면 측정이 진행됩니다</li>
+              <div className="glass-panel p-4">
+                <h3 className="text-sm font-semibold text-moa-text-secondary mb-2 flex items-center gap-2">
+                  <i className="ri-information-line"></i> 측정 가이드
+                </h3>
+                <ul className="text-xs text-moa-text-tertiary space-y-2 list-none pl-0">
+                  <li className="flex items-start gap-2">
+                    <i className="ri-lightbulb-line mt-0.5"></i>
+                    <span>밝은 곳에서 촬영해주세요</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <i className="ri-glasses-line mt-0.5"></i>
+                    <span>모자나 안경을 벗어주세요</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <i className="ri-scan-2-line mt-0.5"></i>
+                    <span>정면과 측면 측정이 진행됩니다</span>
+                  </li>
                 </ul>
               </div>
 
               <button
                 onClick={startCamera}
                 disabled={!user || !faceLandmarker || cameraStarting}
-                className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 font-bold transition-all active:scale-95 shadow-lg shadow-blue-900/20"
+                className="w-full py-4 rounded-xl bg-moa-main hover:opacity-90 disabled:bg-gray-700 disabled:text-gray-500 font-bold transition-all active:scale-95 shadow-moa-color-1 flex items-center justify-center gap-2"
               >
-                {cameraStarting ? "카메라 연결 중..." : faceLandmarker ? "측정 시작하기" : "시스템 로딩 중..."}
+                {cameraStarting ? (
+                  <>
+                    <i className="ri-loader-4-line animate-spin"></i>
+                    카메라 연결 중...
+                  </>
+                ) : faceLandmarker ? (
+                  <>
+                    <i className="ri-camera-line"></i>
+                    측정 시작하기
+                  </>
+                ) : (
+                  <>
+                    <i className="ri-loader-4-line animate-spin"></i>
+                    시스템 로딩 중...
+                  </>
+                )}
               </button>
             </div>
 
             {latestMeasurement && (
-              <div className="mt-8 text-xs text-center text-gray-500">
+              <div className="mt-8 text-xs text-center text-moa-text-tertiary flex items-center gap-2">
+                <i className="ri-history-line"></i>
                 최근 측정: {latestMeasurement.recommended_size} 사이즈 ({new Date(latestMeasurement.created_at!).toLocaleDateString()})
               </div>
             )}
@@ -795,34 +835,24 @@ export default function Home() {
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="flex items-center gap-8">
                   {/* 왼쪽 화살표 - 왼쪽으로 이동 */}
-                  <svg 
-                    className="w-20 h-20 text-cyan-400" 
+                  <i 
+                    className="ri-arrow-left-s-line text-6xl text-cyan-400" 
                     style={{ 
                       animation: 'slideLeft 2s ease-in-out infinite',
                       filter: 'drop-shadow(0 0 8px rgba(34, 211, 238, 0.6))'
-                    }} 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
-                  </svg>
+                    }}
+                  ></i>
                   
                   <div className="text-cyan-400 font-bold text-xl opacity-80">또는</div>
                   
                   {/* 오른쪽 화살표 - 오른쪽으로 이동 */}
-                  <svg 
-                    className="w-20 h-20 text-cyan-400" 
+                  <i 
+                    className="ri-arrow-right-s-line text-6xl text-cyan-400" 
                     style={{ 
                       animation: 'slideRight 2s ease-in-out infinite',
                       filter: 'drop-shadow(0 0 8px rgba(34, 211, 238, 0.6))'
-                    }} 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
-                  </svg>
+                    }}
+                  ></i>
                 </div>
               </div>
             )}
@@ -843,8 +873,9 @@ export default function Home() {
               <button
                 type="button"
                 onClick={stopCamera}
-                className="px-3 py-1.5 rounded-lg bg-black/50 hover:bg-red-600/80 text-white text-xs font-medium transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-black/50 hover:bg-red-600/80 text-white text-xs font-medium transition-colors flex items-center gap-1"
               >
+                <i className="ri-close-line"></i>
                 중단
               </button>
             </div>
@@ -883,44 +914,56 @@ export default function Home() {
             <div className="flex-1 overflow-y-auto pt-24 pb-32 px-6">
               <div className="flex flex-col items-center">
               <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6 flex-shrink-0">
-                <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                <i className="ri-check-line text-4xl text-green-500"></i>
               </div>
 
-              <h2 className="text-2xl font-bold text-white mb-1 flex-shrink-0">측정 완료</h2>
-              <p className="text-gray-400 text-sm mb-8 flex-shrink-0">AI 분석 결과가 준비되었습니다.</p>
+              <h2 className="text-2xl font-bold text-moa-text mb-1 flex-shrink-0">측정 완료</h2>
+              <p className="text-moa-text-secondary text-sm mb-8 flex-shrink-0">AI 분석 결과가 준비되었습니다.</p>
 
               <div className="w-full max-w-md space-y-4 flex-shrink-0">
                 {/* 추천 사이즈 */}
-                <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
+                <div className="glass-panel p-6">
                   <div className="flex justify-between items-center pb-4 border-b border-gray-700">
-                    <span className="text-gray-400">추천 사이즈</span>
-                    <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+                    <span className="text-moa-text-secondary flex items-center gap-2">
+                      <i className="ri-ruler-line"></i>
+                      추천 사이즈
+                    </span>
+                    <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-moa-main">
                       {recommendation.size}
                     </span>
                   </div>
                 </div>
 
                 {/* 추천 마스크 타입 */}
-                <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
-                  <h3 className="text-lg font-bold text-white mb-4">추천 마스크 타입</h3>
+                <div className="glass-panel p-6">
+                  <h3 className="text-lg font-bold text-moa-text mb-4 flex items-center gap-2">
+                    <i className="ri-medal-line"></i>
+                    추천 마스크 타입
+                  </h3>
                   <div className="space-y-3">
                     {recommendation.types.map((typeRec, idx) => (
                       <div 
                         key={typeRec.type}
                         className={`p-4 rounded-xl border-2 ${
                           idx === 0 
-                            ? 'bg-blue-600/20 border-blue-500' 
+                            ? 'bg-moa-main/20 border-moa-main' 
                             : 'bg-gray-700/50 border-gray-600'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             {idx === 0 && (
-                              <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full font-bold">
+                              <span className="text-xs bg-moa-main text-white px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <i className="ri-trophy-line"></i>
                                 1순위
                               </span>
                             )}
-                            <span className="font-bold text-white">
+                            <span className="font-bold text-moa-text flex items-center gap-1">
+                              <i className={
+                                typeRec.type === 'nasal' ? 'ri-nose-line' : 
+                                typeRec.type === 'pillow' ? 'ri-contrast-drop-line' : 
+                                'ri-user-smile-line'
+                              }></i>
                               {typeRec.type === 'nasal' ? '나잘' : typeRec.type === 'pillow' ? '필로우' : '풀페이스'}
                             </span>
                           </div>
@@ -933,7 +976,7 @@ export default function Home() {
                           <div className="space-y-1 mb-2">
                             {typeRec.reasons.map((reason, i) => (
                               <div key={i} className="flex items-start gap-2 text-xs text-green-400">
-                                <span>✓</span>
+                                <i className="ri-check-line mt-0.5"></i>
                                 <span>{reason}</span>
                               </div>
                             ))}
@@ -944,7 +987,7 @@ export default function Home() {
                           <div className="space-y-1">
                             {typeRec.warnings.map((warning, i) => (
                               <div key={i} className="flex items-start gap-2 text-xs text-yellow-400">
-                                <span>⚠</span>
+                                <i className="ri-alert-line mt-0.5"></i>
                                 <span>{warning}</span>
                               </div>
                             ))}
@@ -957,12 +1000,15 @@ export default function Home() {
 
                 {/* 종합 의견 */}
                 {recommendation.overallReasons.length > 0 && (
-                  <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
-                    <h3 className="text-sm font-bold text-gray-300 mb-3">💡 종합 의견</h3>
+                  <div className="glass-panel p-6">
+                    <h3 className="text-sm font-bold text-moa-text-secondary mb-3 flex items-center gap-2">
+                      <i className="ri-lightbulb-line"></i>
+                      종합 의견
+                    </h3>
                     <div className="space-y-2">
                       {recommendation.overallReasons.map((reason, i) => (
-                        <div key={i} className="flex items-start gap-2 text-sm text-gray-300">
-                          <span className="text-blue-400">•</span>
+                        <div key={i} className="flex items-start gap-2 text-sm text-moa-text-secondary">
+                          <i className="ri-arrow-right-s-line text-moa-main mt-0.5"></i>
                           <span>{reason}</span>
                         </div>
                       ))}
@@ -971,35 +1017,38 @@ export default function Home() {
                 )}
 
                 {/* 측정값 상세 */}
-                <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
-                  <h3 className="text-sm font-bold text-gray-300 mb-3">📏 측정값 상세</h3>
+                <div className="glass-panel p-6">
+                  <h3 className="text-sm font-bold text-moa-text-secondary mb-3 flex items-center gap-2">
+                    <i className="ri-ruler-2-line"></i>
+                    측정값 상세
+                  </h3>
                   <div className="space-y-3 text-sm">
                     {/* 정면 측정값 */}
                     <div className="border-b border-gray-700 pb-3">
-                      <h4 className="text-xs text-gray-500 mb-2 font-semibold">정면 측정</h4>
+                      <h4 className="text-xs text-moa-text-tertiary mb-2 font-semibold">정면 측정</h4>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-black/20 p-3 rounded-lg">
-                          <div className="text-gray-500 text-xs mb-1">코 너비</div>
-                          <div className="font-semibold">{finalResult.front.noseWidth}mm</div>
+                          <div className="text-moa-text-tertiary text-xs mb-1">코 너비</div>
+                          <div className="font-semibold text-moa-text">{finalResult.front.noseWidth}mm</div>
                         </div>
                         <div className="bg-black/20 p-3 rounded-lg">
-                          <div className="text-gray-500 text-xs mb-1">얼굴 길이</div>
-                          <div className="font-semibold">{finalResult.front.faceLength}mm</div>
+                          <div className="text-moa-text-tertiary text-xs mb-1">얼굴 길이</div>
+                          <div className="font-semibold text-moa-text">{finalResult.front.faceLength}mm</div>
                         </div>
                         <div className="bg-black/20 p-3 rounded-lg">
-                          <div className="text-gray-500 text-xs mb-1">얼굴 폭</div>
-                          <div className="font-semibold">{finalResult.front.faceWidth}mm</div>
+                          <div className="text-moa-text-tertiary text-xs mb-1">얼굴 폭</div>
+                          <div className="font-semibold text-moa-text">{finalResult.front.faceWidth}mm</div>
                         </div>
                         <div className="bg-black/20 p-3 rounded-lg">
-                          <div className="text-gray-500 text-xs mb-1">미간 너비</div>
-                          <div className="font-semibold">{finalResult.front.bridgeWidth}mm</div>
+                          <div className="text-moa-text-tertiary text-xs mb-1">미간 너비</div>
+                          <div className="font-semibold text-moa-text">{finalResult.front.bridgeWidth}mm</div>
                         </div>
                         <div className="bg-black/20 p-3 rounded-lg">
-                          <div className="text-gray-500 text-xs mb-1">인중 길이</div>
+                          <div className="text-moa-text-tertiary text-xs mb-1">인중 길이</div>
                           <div className="font-semibold text-cyan-300">{finalResult.front.philtrumLength}mm</div>
                         </div>
                         <div className="bg-black/20 p-3 rounded-lg">
-                          <div className="text-gray-500 text-xs mb-1">입 너비</div>
+                          <div className="text-moa-text-tertiary text-xs mb-1">입 너비</div>
                           <div className="font-semibold text-cyan-300">{finalResult.front.mouthWidth}mm</div>
                         </div>
                       </div>
@@ -1007,14 +1056,14 @@ export default function Home() {
 
                     {/* 측면 측정값 */}
                     <div>
-                      <h4 className="text-xs text-gray-500 mb-2 font-semibold">측면 측정</h4>
+                      <h4 className="text-xs text-moa-text-tertiary mb-2 font-semibold">측면 측정</h4>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-black/20 p-3 rounded-lg">
-                          <div className="text-gray-500 text-xs mb-1">코 높이</div>
+                          <div className="text-moa-text-tertiary text-xs mb-1">코 높이</div>
                           <div className="font-semibold text-emerald-300">{finalResult.profile.noseHeight}mm</div>
                         </div>
                         <div className="bg-black/20 p-3 rounded-lg">
-                          <div className="text-gray-500 text-xs mb-1">턱 돌출</div>
+                          <div className="text-moa-text-tertiary text-xs mb-1">턱 돌출</div>
                           <div className="font-semibold text-emerald-300">{finalResult.profile.jawProjection}mm</div>
                         </div>
                       </div>
@@ -1026,14 +1075,16 @@ export default function Home() {
               <div className="flex gap-3 mt-6 w-full max-w-md flex-shrink-0">
                 <button
                   onClick={handleRetry}
-                  className="flex-1 py-4 rounded-xl bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors"
+                  className="flex-1 py-4 rounded-xl bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors flex items-center justify-center gap-2"
                 >
+                  <i className="ri-restart-line"></i>
                   재측정
                 </button>
                 <button
                   onClick={handleSave}
-                  className="flex-[2] py-4 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white shadow-lg transition-all active:scale-95"
+                  className="flex-[2] py-4 rounded-xl bg-moa-main hover:opacity-90 font-bold text-white shadow-moa-color-1 transition-all active:scale-95 flex items-center justify-center gap-2"
                 >
+                  <i className="ri-save-line"></i>
                   결과 저장하기
                 </button>
               </div>

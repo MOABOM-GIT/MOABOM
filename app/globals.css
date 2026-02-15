@@ -1,26 +1,156 @@
 @import "tailwindcss";
 
+/* ========================================
+   모아봄 디자인 시스템 - Tailwind v4 통합
+======================================== */
+
+@theme {
+  /* 모아봄 컬러 시스템 */
+  --color-moa-main: var(--color-main-lv1);
+  --color-moa-main-light: var(--color-main-lv2);
+  --color-moa-main-lighter: var(--color-main-lv3);
+  
+  --color-moa-text: var(--text-lv1);
+  --color-moa-text-secondary: var(--text-lv2);
+  --color-moa-text-tertiary: var(--text-lv3);
+  
+  --color-moa-bg: var(--layout-max-lv1);
+  --color-moa-bg-secondary: var(--layout-max-lv2);
+  --color-moa-bg-tertiary: var(--layout-max-lv3);
+  
+  /* 랭크 컬러 */
+  --color-rank-1: #ef4444;
+  --color-rank-2: #f59e0b;
+  --color-rank-3: #ec4899;
+  --color-rank-4: #8b5cf6;
+  --color-rank-5: #6366f1;
+  --color-rank-6: #3b82f6;
+  --color-rank-7: #22c55e;
+  --color-rank-8: #10b981;
+  --color-rank-9: #94a3b8;
+  --color-rank-10: #64748b;
+  
+  /* 반경 */
+  --radius-panel: var(--panel-radius);
+  
+  /* 그림자 */
+  --shadow-moa: var(--layout-shadow);
+  --shadow-moa-color-1: var(--color-shadow-lv1);
+  --shadow-moa-color-2: var(--color-shadow-lv2);
+  --shadow-moa-color-3: var(--color-shadow-lv3);
+}
+
+/* CSS Variables (런타임 테마 전환용) */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* 공통 변수 */
+  --color-white: #fff;
+  --color-black: #000;
+  
+  /* 랭크 컬러 */
+  --color-rank01: #ef4444;
+  --color-rank02: #f59e0b;
+  --color-rank03: #ec4899;
+  --color-rank04: #8b5cf6;
+  --color-rank05: #6366f1;
+  --color-rank06: #3b82f6;
+  --color-rank07: #22c55e;
+  --color-rank08: #10b981;
+  --color-rank09: #94a3b8;
+  --color-rank10: #64748b;
+  --color-rank11: #CD7F32;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Dark 테마 (기본) */
+body[data-theme="dark"] {
+  --panel-radius: 24px;
+  --text-lv1: #ffffff;
+  --text-lv2: #D7D6E8;
+  --text-lv3: #8c8c9e;
+  --motion: ease;
+  --motion-duration: 0.3s;
+  
+  --layout-max-lv1: rgba(27, 26, 29, 0.85);
+  --layout-max-lv2: rgba(154, 164, 175, 0.15);
+  --layout-max-lv3: rgba(49, 49, 60, 0.6);
+  --layout-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0px 1px 0px rgba(255, 255, 255, 0.08);
+  --layout-blur: blur(15px) saturate(1.3);
+  
+  --layout-min-lv1: rgba(0, 0, 0, 0.25);
+  --layout-min-lv2: rgba(0, 0, 0, 0.4);
+  --layout-min-lv3: rgba(255, 255, 255, 0.05);
+  
+  --color-main-lv1: rgba(139, 92, 246, 1.00);
+  --color-main-lv2: rgba(139, 92, 246, .5);
+  --color-main-lv3: rgba(27, 26, 29, 0.90);
+  
+  --color-shadow-lv1: 0 10px 15px -3px var(--color-main-lv2);
+  --color-shadow-lv2: 0 4px 6px -4px var(--color-main-lv2);
+  --color-shadow-lv3: 0 2px 7px var(--color-main-lv2);
+  
+  --bg-gradient: linear-gradient(120deg, #1b1a1d 0%, #121214 100%);
+  --orb-opacity: 0.45;
+  --orb-color-1: #6366f1;
+  --orb-color-2: #00d2ff;
+  --orb-color-3: #ec4899;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Light 테마 */
+body[data-theme="light"] {
+  --panel-radius: 24px;
+  --text-lv1: #2C3749;
+  --text-lv2: #57667B;
+  --text-lv3: #979fac;
+  --motion: ease;
+  --motion-duration: 0.3s;
+  
+  --layout-max-lv1: rgba(255, 255, 255, 0.7);
+  --layout-max-lv2: rgba(255, 255, 255, 0.6);
+  --layout-max-lv3: rgba(255, 255, 255, 0.3);
+  --layout-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08), inset 0px 0px 7px rgba(255, 255, 255, 0.35);
+  --layout-blur: blur(12px) saturate(1.8);
+  
+  --layout-min-lv1: rgba(0, 0, 0, 0.07);
+  --layout-min-lv2: rgba(0, 0, 0, 0.06);
+  --layout-min-lv3: rgba(0, 0, 0, 0.03);
+  
+  --color-main-lv1: #00d2ff;
+  --color-main-lv2: rgba(0, 210, 255, .3);
+  --color-main-lv3: rgba(231, 239, 241, 0.90);
+  
+  --color-shadow-lv1: 0 8px 13px -3px var(--color-main-lv2);
+  --color-shadow-lv2: 0 3px 5px -3px var(--color-main-lv2);
+  --color-shadow-lv3: 0 2px 7px var(--color-main-lv2);
+  
+  --bg-gradient: linear-gradient(120deg, #f4f7f6 0%, #dfe6e9 100%);
+  --orb-opacity: 0.6;
+  --orb-color-1: #a29bfe;
+  --orb-color-2: #81ecec;
+  --orb-color-3: #fab1a0;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg-gradient, #0a0a0a);
+  color: var(--text-lv1, #ededed);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* 모아봄 유틸리티 클래스 */
+.glass-panel {
+  background: var(--layout-max-lv1);
+  backdrop-filter: var(--layout-blur);
+  box-shadow: var(--layout-shadow);
+  border-radius: var(--panel-radius);
+}
+
+.text-primary {
+  color: var(--color-main-lv1);
+}
+
+.text-secondary {
+  color: var(--text-lv2);
+}
+
+.text-tertiary {
+  color: var(--text-lv3);
+}
+
