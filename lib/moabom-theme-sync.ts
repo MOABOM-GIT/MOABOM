@@ -103,6 +103,9 @@ const THEME_VARIABLES: Record<MoabomTheme, Record<string, string>> = {
     '--color-main-lv3': 'rgba(231,239,241,0.90)',
     '--bg-gradient': 'linear-gradient(120deg, #f4f7f6 0%, #dfe6e9 100%)',
     '--orb-opacity': '0.6',
+    '--orb-color-1': '#a29bfe',
+    '--orb-color-2': '#81ecec',
+    '--orb-color-3': '#fab1a0',
   },
   dark: {
     '--panel-radius': '24px',
@@ -122,6 +125,9 @@ const THEME_VARIABLES: Record<MoabomTheme, Record<string, string>> = {
     '--color-main-lv3': 'rgba(27,26,29,0.90)',
     '--bg-gradient': 'linear-gradient(120deg, #1b1a1d 0%, #121214 100%)',
     '--orb-opacity': '0.45',
+    '--orb-color-1': '#6366f1',
+    '--orb-color-2': '#00d2ff',
+    '--orb-color-3': '#ec4899',
   },
   performance: {
     '--panel-radius': '12px',

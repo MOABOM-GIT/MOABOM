@@ -31,6 +31,13 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {/* 모아봄 Aurora 배경 */}
+        <div className="aurora-container">
+          <div className="orb o1"></div>
+          <div className="orb o2"></div>
+          <div className="orb o3"></div>
+        </div>
+        
         {children}
       </body>
     </html>
