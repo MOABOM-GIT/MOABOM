@@ -455,28 +455,29 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-black font-sans text-white">
-      {/* 메인 뷰포트 - 가로 꽉 채우고 16:9 비율 유지 */}
-      <div className="relative w-full aspect-video bg-gray-900 shadow-2xl overflow-hidden">
-        {/* 카메라 비디오 */}
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${step === 'IDLE' ? 'opacity-0' : 'opacity-100'}`}
-          style={{ transform: 'scaleX(-1)' }}
-        />
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          style={{ transform: 'scaleX(-1)' }}
-        />
+      {/* 메인 뷰포트 - 화면에 맞춰 자동 조절 (비율 유지) */}
+      <div className="relative w-full h-full max-w-full max-h-screen flex items-center justify-center bg-gray-900">
+        <div className="relative w-full h-full max-w-[100vw] max-h-[100vh] aspect-video">
+          {/* 카메라 비디오 */}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${step === 'IDLE' ? 'opacity-0' : 'opacity-100'}`}
+            style={{ transform: 'scaleX(-1)' }}
+          />
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            style={{ transform: 'scaleX(-1)' }}
+          />
 
         {/* UI 레이어: 상태별 오버레이 */}
 
         {/* 1. IDLE 상태 */}
         {step === 'IDLE' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-800 to-black">
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-800 to-black overflow-y-auto">
             <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
               SmartCare AI
             </h1>
@@ -655,6 +656,7 @@ export default function Home() {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
