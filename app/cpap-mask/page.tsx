@@ -425,10 +425,26 @@ export default function Home() {
     const res = await saveMeasurement(saveData);
     if (res.success) {
       setLatestMeasurement(res.data!);
-      alert("저장되었습니다!");
-      window.parent.postMessage({ type: 'MEASUREMENT_COMPLETE', data: res.data }, '*');
+      
+      // 부모 창(모아봄)에 토스트 메시지 전송
+      window.parent.postMessage({ 
+        type: 'SHOW_TOAST', 
+        message: '측정 결과가 저장되었습니다!',
+        variant: 'success' // 또는 'info', 'warning', 'error'
+      }, '*');
+      
+      // 측정 완료 데이터도 함께 전송
+      window.parent.postMessage({ 
+        type: 'MEASUREMENT_COMPLETE', 
+        data: res.data 
+      }, '*');
     } else {
-      alert("저장 실패");
+      // 에러 토스트
+      window.parent.postMessage({ 
+        type: 'SHOW_TOAST', 
+        message: '저장에 실패했습니다. 다시 시도해주세요.',
+        variant: 'error'
+      }, '*');
     }
   };
 
@@ -519,23 +535,53 @@ export default function Home() {
               <p className="text-sm text-cyan-300 mt-1 animate-pulse font-medium">{subStatus}</p>
             </div>
 
-            {/* 측면 회전 가이드 - 깔끔한 화살표 애니메이션 */}
+            {/* 측면 회전 가이드 - 좌우로 스무스한 화살표 애니메이션 */}
             {step === 'GUIDE_TURN_SIDE' && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="flex items-center gap-4 animate-pulse">
-                  {/* 왼쪽 화살표 */}
-                  <div className="flex items-center gap-2">
-                    <svg className="w-16 h-16 text-cyan-400 animate-bounce" style={{ animationDirection: 'alternate', animationDuration: '1s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" />
-                    </svg>
-                    <div className="text-cyan-400 font-bold text-2xl">또는</div>
-                    <svg className="w-16 h-16 text-cyan-400 animate-bounce" style={{ animationDirection: 'alternate', animationDuration: '1s', animationDelay: '0.5s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
+                <div className="flex items-center gap-8">
+                  {/* 왼쪽 화살표 - 왼쪽으로 이동 */}
+                  <svg 
+                    className="w-20 h-20 text-cyan-400" 
+                    style={{ 
+                      animation: 'slideLeft 2s ease-in-out infinite',
+                      filter: 'drop-shadow(0 0 8px rgba(34, 211, 238, 0.6))'
+                    }} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  
+                  <div className="text-cyan-400 font-bold text-xl opacity-80">또는</div>
+                  
+                  {/* 오른쪽 화살표 - 오른쪽으로 이동 */}
+                  <svg 
+                    className="w-20 h-20 text-cyan-400" 
+                    style={{ 
+                      animation: 'slideRight 2s ease-in-out infinite',
+                      filter: 'drop-shadow(0 0 8px rgba(34, 211, 238, 0.6))'
+                    }} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+                  </svg>
                 </div>
               </div>
             )}
+
+            <style jsx>{`
+              @keyframes slideLeft {
+                0%, 100% { transform: translateX(0); opacity: 1; }
+                50% { transform: translateX(-20px); opacity: 0.7; }
+              }
+              @keyframes slideRight {
+                0%, 100% { transform: translateX(0); opacity: 1; }
+                50% { transform: translateX(20px); opacity: 0.7; }
+              }
+            `}</style>
 
             {/* 측정 중단 버튼 */}
             <div className="absolute top-4 right-4 z-20 pointer-events-auto">
