@@ -241,24 +241,16 @@ export interface ProfileMeasurements {
   faceDepth: number;  // 얼굴 깊이 (귀~코) - 참고용
 }
 
-export function performProfileMeasurement(landmarks: any[], scaleFactor: number): ProfileMeasurements {
+export function performProfileMeasurement(landmarks: any[], scaleFactor: number, width: number, height: number): ProfileMeasurements {
   const noseTip = landmarks[LANDMARKS.NOSE_TIP];
-  const noseBridge = landmarks[LANDMARKS.NOSE_BRIDGE]; // 미간
-
-  // 측면에서는 코 끝이 가장 튀어나와 있음 (z축 혹은 x축 상의 거리)
-  // 90도 완전 측면이 아닐 수 있으므로 3D 좌표 거리 활용하거나 
-  // 투영된 2D 거리로 근사 계산
-
-  // 간단한 근사: 코 끝과 콧대(미간) 사이의 거리를 "코 길이/높이"의 척도로 사용
-  // 정확한 깊이(Depth) 측정은 단일 카메라로 어려우나, 
-  // 고개를 돌렸을 때 코 끝이 얼굴 윤곽선에서 얼마나 떨어져 있는지를 계산할 수 있음.
-
-  // 코 끝과 인중/입술 상단과의 거리도 코 높이와 관련 있음
   const noseBottom = landmarks[LANDMARKS.NOSE_BOTTOM];
 
-  // 측면 뷰에서 '코 높이' 추정 (Projction)
-  // 코 끝(1)과 콧볼/인중 부근의 랜드마크 거리
-  const noseProjectionMax = calculateDistance(noseTip, noseBottom) * scaleFactor;
+  // 정규화된 좌표를 픽셀로 변환
+  const tipPixel = { x: noseTip.x * width, y: noseTip.y * height };
+  const bottomPixel = { x: noseBottom.x * width, y: noseBottom.y * height };
+
+  // 측면 뷰에서 '코 높이' 추정
+  const noseProjectionMax = calculateDistance(tipPixel, bottomPixel) * scaleFactor;
 
   return {
     noseHeight: Math.round(noseProjectionMax * 10) / 10,

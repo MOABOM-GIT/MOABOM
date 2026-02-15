@@ -159,8 +159,8 @@ export default function Home() {
         // 기본 드로잉 (얼굴 감지됨)
         drawLandmarks(ctx, landmarks, canvas.width, canvas.height, true);
 
-        // 측정값 계산
-        const measurements = performMeasurement(results);
+        // 측정값 계산 - 캔버스 크기 전달
+        const measurements = performMeasurement(results, canvas.width, canvas.height);
         const yaw = estimateYaw(landmarks);
 
         if (measurements) {
@@ -262,7 +262,10 @@ export default function Home() {
       case 'SCANNING_PROFILE': {
         // 측면 데이터 수집
         const fixedScale = session.getFixedScaleFactor();
-        const profileData = performProfileMeasurement(landmarks, fixedScale);
+        const canvas = canvasRef.current;
+        if (!canvas) break;
+        
+        const profileData = performProfileMeasurement(landmarks, fixedScale, canvas.width, canvas.height);
         session.addProfileMeasurement(profileData);
         
         const progress = session.getProfileProgress();
