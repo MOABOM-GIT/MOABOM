@@ -447,15 +447,15 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-black font-sans text-white overflow-hidden">
-      {/* 메인 뷰포트 */}
-      <div className="relative w-full h-screen max-w-md mx-auto bg-gray-900 shadow-2xl overflow-hidden">
+      {/* 메인 뷰포트 - PC에서는 16:9 비율, 모바일에서는 전체 화면 */}
+      <div className="relative w-full h-screen md:max-w-4xl md:aspect-video md:h-auto mx-auto bg-gray-900 shadow-2xl overflow-hidden">
         {/* 카메라 비디오 */}
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${step === 'IDLE' ? 'opacity-0' : 'opacity-100'}`}
+          className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${step === 'IDLE' ? 'opacity-0' : 'opacity-100'}`}
           style={{ transform: 'scaleX(-1)' }}
         />
         <canvas
