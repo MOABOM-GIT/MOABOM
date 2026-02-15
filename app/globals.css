@@ -46,6 +46,25 @@
   --color-white: #fff;
   --color-black: #000;
   
+  /* 기본 테마 변수 (light 테마 기본값) - JavaScript 로드 전 폴백 */
+  --panel-radius: 24px;
+  --text-lv1: #2C3749;
+  --text-lv2: #57667B;
+  --text-lv3: #979fac;
+  --layout-max-lv1: rgba(255, 255, 255, 0.7);
+  --layout-max-lv2: rgba(255, 255, 255, 0.6);
+  --layout-max-lv3: rgba(255, 255, 255, 0.3);
+  --layout-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08), inset 0px 0px 7px rgba(255, 255, 255, 0.35);
+  --layout-blur: blur(12px) saturate(1.8);
+  --layout-min-lv1: rgba(0, 0, 0, 0.07);
+  --layout-min-lv2: rgba(0, 0, 0, 0.06);
+  --layout-min-lv3: rgba(0, 0, 0, 0.03);
+  --color-main-lv1: #00d2ff;
+  --color-main-lv2: rgba(0, 210, 255, .3);
+  --color-main-lv3: rgba(231, 239, 241, 0.90);
+  --bg-gradient: linear-gradient(120deg, #f4f7f6 0%, #dfe6e9 100%);
+  --orb-opacity: 0.6;
+  
   /* 랭크 컬러 */
   --color-rank01: #ef4444;
   --color-rank02: #f59e0b;
