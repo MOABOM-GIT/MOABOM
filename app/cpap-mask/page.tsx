@@ -7,13 +7,27 @@ import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import {
   performMeasurement,
   recommendMaskSize,
-  drawLandmarks,
+  // drawLandmarks, // 기존 그리기 함수 제거
   type FaceMeasurements,
   estimateYaw,
   performProfileMeasurement,
-  type ProfileMeasurements,
-  LANDMARKS
+  type ProfileMeasurements
 } from "@/lib/face-measurement";
+
+// --- [수정 1] 깔끔한 드로잉을 위한 로컬 함수 (광대뼈 선 제거) ---
+function drawSimpleFace(ctx: CanvasRenderingContext2D, landmarks: any[], width: number, height: number) {
+  if (!landmarks || landmarks.length === 0) return;
+
+  // 점만 작게 찍어서 깔끔하게 표시 (선 없음)
+  ctx.fillStyle = "rgba(0, 255, 255, 0.6)"; 
+  for (const point of landmarks) {
+    const x = point.x * width;
+    const y = point.y * height;
+    ctx.beginPath();
+    ctx.arc(x, y, 1, 0, 2 * Math.PI); // 반지름 1px의 아주 작은 점
+    ctx.fill();
+  }
+}
 
 // 측정 단계 정의
 type MeasurementStep =
@@ -27,9 +41,12 @@ type MeasurementStep =
   | 'COMPLETE';       // 완료
 
 const COUNTDOWN_SECONDS = 3;
-const SCAN_FRAMES = 90; // 약 3초 동안 데이터 수집 (30fps 기준) - 천천히 측정
-const YAW_THRESHOLD_FRONT = 10; // 정면 허용 각도
-const YAW_THRESHOLD_PROFILE = 35; // 측면 인식 최소 각도
+const SCAN_FRAMES = 90; 
+const YAW_THRESHOLD_FRONT = 10; 
+const YAW_THRESHOLD_PROFILE = 35; 
+
+// PC 오류 방지를 위한 임계값 (얼굴 너비가 180mm를 넘으면 잘못된 측정으로 간주)
+const MAX_VALID_FACE_WIDTH = 180; 
 
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -37,7 +54,7 @@ export default function Home() {
 
   // 상태 관리
   const [step, setStep] = useState<MeasurementStep>('IDLE');
-  const stepRef = useRef<MeasurementStep>('IDLE'); // Loop용 Ref
+  const stepRef = useRef<MeasurementStep>('IDLE'); 
 
   const [status, setStatus] = useState("준비 완료");
   const [subStatus, setSubStatus] = useState("");
@@ -48,9 +65,9 @@ export default function Home() {
 
   // 측정 데이터
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
-  const [scanProgress, setScanProgress] = useState(0); // 0–100, 프로그레스바용
+  const [scanProgress, setScanProgress] = useState(0); 
 
-  // 데이터 버퍼 (Ref로 관리하여 Loop 내 접근 보장)
+  // 데이터 버퍼
   const frontBufferRef = useRef<FaceMeasurements[]>([]);
   const profileBufferRef = useRef<ProfileMeasurements[]>([]);
 
@@ -59,7 +76,7 @@ export default function Home() {
   const fixedScaleFactorRef = useRef<number>(0);
 
   const animationFrameRef = useRef<number | null>(null);
-  const stableFramesRef = useRef(0); // 자세 안정화 프레임 카운터
+  const stableFramesRef = useRef(0);
 
   // State 동기화
   useEffect(() => { stepRef.current = step; }, [step]);
@@ -90,6 +107,11 @@ export default function Home() {
     };
 
     initMediaPipe();
+    
+    // Cleanup
+    return () => {
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    }
   }, []);
 
   // 사용자 정보 초기화
@@ -118,7 +140,7 @@ export default function Home() {
     initUser();
   }, []);
 
-  // 단계별 로직 처리 (useEffect for Countdown)
+  // 단계별 로직 처리 (Countdown)
   useEffect(() => {
     if (step === 'COUNTDOWN') {
       let count = COUNTDOWN_SECONDS;
@@ -145,13 +167,14 @@ export default function Home() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
-      // Canvas Context 가져오기 (매 프레임마다 확인)
-      const ctx = canvas.getContext('2d');
-
-      if (!ctx || video.readyState < 2) {
+      // 비디오가 준비되지 않았으면 재시도
+      if (video.readyState < 2 || video.paused) {
         animationFrameRef.current = requestAnimationFrame(detectFace);
         return;
       }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
       // 캔버스 크기 맞춤
       canvas.width = video.videoWidth;
@@ -165,31 +188,32 @@ export default function Home() {
       if (results.faceLandmarks && results.faceLandmarks.length > 0) {
         const landmarks = results.faceLandmarks[0];
 
-        // 기본 드로잉
-        drawLandmarks(ctx, landmarks, canvas.width, canvas.height);
+        // [수정 1 적용] 단순화된 그리기 함수 사용 (선 없음)
+        drawSimpleFace(ctx, landmarks, canvas.width, canvas.height);
 
         // 측정값 계산
         const measurements = performMeasurement(results);
         const yaw = estimateYaw(landmarks);
 
         if (measurements) {
-          const currentStep = stepRef.current;
-          processStep(currentStep, measurements, yaw, landmarks);
+            // [수정 3 적용] PC에서 얼굴이 너무 크게(50cm 등) 측정되는 경우 필터링
+            if (measurements.noseWidth > MAX_VALID_FACE_WIDTH || measurements.faceLength > 400) {
+                 setSubStatus("카메라에 조금 더 가까이 와주세요");
+            } else {
+                 const currentStep = stepRef.current;
+                 processStep(currentStep, measurements, yaw, landmarks);
+            }
         }
       } else {
         // 얼굴 없음 처리
         const currentStep = stepRef.current;
-        if (currentStep === 'GUIDE_CHECK' || currentStep === 'GUIDE_TURN_SIDE') {
-          setSubStatus("얼굴을 찾을 수 없습니다");
-          stableFramesRef.current = 0;
-        } else if (currentStep === 'SCANNING_FRONT' || currentStep === 'SCANNING_PROFILE') {
-          // 스캔 중 얼굴을 못 찾으면 버퍼 클리어
-          setSubStatus("얼굴을 다시 찾아주세요");
-          stableFramesRef.current = 0;
+        if (['GUIDE_CHECK', 'GUIDE_TURN_SIDE', 'SCANNING_FRONT', 'SCANNING_PROFILE'].includes(currentStep)) {
+            if (currentStep === 'GUIDE_CHECK') setSubStatus("얼굴을 찾을 수 없습니다");
+            stableFramesRef.current = 0;
         }
       }
 
-      // 루프 지속 조건 확인 (Ref 사용)
+      // 루프 지속
       const currentStep = stepRef.current;
       if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE') {
         animationFrameRef.current = requestAnimationFrame(detectFace);
@@ -198,33 +222,25 @@ export default function Home() {
       }
     } catch (e) {
       console.error("Detection Loop Error:", e);
-      const currentStep = stepRef.current;
-      if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE') {
-        setTimeout(() => {
-          if (stepRef.current !== 'COMPLETE' && stepRef.current !== 'IDLE') {
-            animationFrameRef.current = requestAnimationFrame(detectFace);
-          }
-        }, 1000);
+      // 에러 발생 시에도 루프 복구 시도
+      if (stepRef.current !== 'COMPLETE' && stepRef.current !== 'IDLE') {
+         animationFrameRef.current = requestAnimationFrame(detectFace);
       }
     }
-  }, [faceLandmarker]); // 의존성을 최소화 (Refs 사용)
+  }, [faceLandmarker]);
 
   // 단계별 처리 로직
   const processStep = (currentStep: MeasurementStep, measurements: FaceMeasurements, yaw: number, landmarks: any[]) => {
     switch (currentStep) {
       case 'GUIDE_CHECK':
-        // 정면 응시 확인 (Yaw가 0에 가까워야 함)
         if (Math.abs(yaw) < YAW_THRESHOLD_FRONT) {
           stableFramesRef.current++;
           setSubStatus(`정면 확인 중... ${Math.min(stableFramesRef.current, 20)}/20`);
 
-          if (stableFramesRef.current > 20) { // 약 0.6초 유지
+          if (stableFramesRef.current > 20) {
             setStatus("측정을 시작합니다");
             setSubStatus("");
-
-            // State Update
             setStep('COUNTDOWN');
-            // Ref Update (즉시 반영을 위해)
             stepRef.current = 'COUNTDOWN';
           }
         } else {
@@ -234,26 +250,23 @@ export default function Home() {
         break;
 
       case 'SCANNING_FRONT': {
-        // 정면 데이터 수집
         frontBufferRef.current.push(measurements);
         const len = frontBufferRef.current.length;
         const pct = Math.round((len / SCAN_FRAMES) * 100);
-        // 10프레임마다 한 번만 상태 업데이트 (리렌더 스로틀)
-        if (len % 10 === 1 || len >= SCAN_FRAMES) {
+        
+        if (len % 5 === 0 || len >= SCAN_FRAMES) {
           setScanProgress(pct);
           setStatus("정면 스캔 중...");
           setSubStatus(`${pct}% 완료`);
         }
 
         if (len >= SCAN_FRAMES) {
-          // 정면 스캔 완료 시 스케일 팩터 고정
           const avgScale = frontBufferRef.current.reduce((acc, cur) => acc + cur.scaleFactor, 0) / frontBufferRef.current.length;
           setFixedScaleFactor(avgScale);
-          fixedScaleFactorRef.current = avgScale; // Sync Ref
+          fixedScaleFactorRef.current = avgScale;
 
           setStep('GUIDE_TURN_SIDE');
           stepRef.current = 'GUIDE_TURN_SIDE';
-
           setStatus("측면 측정");
           setSubStatus("고개를 천천히 옆으로 돌려주세요");
           stableFramesRef.current = 0;
@@ -263,27 +276,25 @@ export default function Home() {
       }
 
       case 'GUIDE_TURN_SIDE':
-        // 측면 회전 확인 (Yaw가 일정 이상이어야 함)
         if (Math.abs(yaw) > YAW_THRESHOLD_PROFILE) {
           stableFramesRef.current++;
-
           if (stableFramesRef.current > 10) {
             setStep('SCANNING_PROFILE');
             stepRef.current = 'SCANNING_PROFILE';
-            profileBufferRef.current = []; // 초기화
+            profileBufferRef.current = [];
           }
         } else {
-          stableFramesRef.current = 0; // 다시 돌아오면 리셋
+          stableFramesRef.current = 0;
         }
         break;
 
       case 'SCANNING_PROFILE': {
-        // 측면 데이터 수집 - 고정된 스케일 팩터 사용 (Ref)
         const profileData = performProfileMeasurement(landmarks, fixedScaleFactorRef.current);
         profileBufferRef.current.push(profileData);
         const plen = profileBufferRef.current.length;
         const ppct = Math.round((plen / SCAN_FRAMES) * 100);
-        if (plen % 10 === 1 || plen >= SCAN_FRAMES) {
+        
+        if (plen % 5 === 0 || plen >= SCAN_FRAMES) {
           setScanProgress(ppct);
           setStatus("측면 스캔 중...");
           setSubStatus(`${ppct}% 완료`);
@@ -299,7 +310,6 @@ export default function Home() {
 
   // 측정 완료 및 결과 처리
   const finishMeasurement = () => {
-    // 평균값 계산
     const avgFront = calculateAverageFront(frontBufferRef.current);
     const avgProfile = calculateAverageProfile(profileBufferRef.current);
 
@@ -309,29 +319,16 @@ export default function Home() {
     });
 
     setStep('COMPLETE');
+    stepRef.current = 'COMPLETE'; // 중요: 루프 중단을 위해 즉시 업데이트
     setStatus("측정 완료");
     setSubStatus("결과를 확인하고 저장하세요");
 
-    // 카메라 정지
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-    }
+    stopCamera(false); // 스트림은 유지하지 않고 완전 중지
   };
 
   const calculateAverageFront = (buffer: FaceMeasurements[]): FaceMeasurements => {
-    if (buffer.length === 0) {
-      return {
-        noseWidth: 0,
-        faceLength: 0,
-        chinAngle: 0,
-        ipdPixels: 0,
-        scaleFactor: 0,
-        confidence: 0
-      };
-    }
+    if (buffer.length === 0) return { noseWidth: 0, faceLength: 0, chinAngle: 0, ipdPixels: 0, scaleFactor: 0, confidence: 0 };
 
-    // 간단 평균
     const sum = buffer.reduce((acc, cur) => ({
       noseWidth: acc.noseWidth + cur.noseWidth,
       faceLength: acc.faceLength + cur.faceLength,
@@ -354,12 +351,10 @@ export default function Home() {
 
   const calculateAverageProfile = (buffer: ProfileMeasurements[]): ProfileMeasurements => {
     if (buffer.length === 0) return { noseHeight: 0, faceDepth: 0 };
-
     const sum = buffer.reduce((acc, cur) => ({
       noseHeight: acc.noseHeight + cur.noseHeight,
       faceDepth: acc.faceDepth + cur.faceDepth
     }), { noseHeight: 0, faceDepth: 0 });
-
     const count = buffer.length;
     return {
       noseHeight: Math.round(sum.noseHeight / count * 10) / 10,
@@ -367,18 +362,24 @@ export default function Home() {
     };
   };
 
-  const stopCamera = useCallback(() => {
+  const stopCamera = useCallback((resetStep = true) => {
     if (videoRef.current?.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
-    setStep('IDLE');
-    setScanProgress(0);
-    frontBufferRef.current = [];
-    profileBufferRef.current = [];
-    stableFramesRef.current = 0;
-    animationFrameRef.current = null;
+    if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+    }
+    
+    if (resetStep) {
+        setStep('IDLE');
+        setScanProgress(0);
+        frontBufferRef.current = [];
+        profileBufferRef.current = [];
+        stableFramesRef.current = 0;
+    }
   }, []);
 
   const startCamera = async () => {
@@ -403,12 +404,20 @@ export default function Home() {
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play();
-          setCameraStarting(false);
-          setStep('GUIDE_CHECK');
-          setStatus("카메라를 정면으로 봐주세요");
-          requestAnimationFrame(detectFace);
+        
+        // [수정 2] onloadedmetadata -> oncanplay로 변경 및 명시적 play() 호출
+        // 이는 브라우저 호환성과 시작 속도를 높여줍니다.
+        videoRef.current.oncanplay = async () => {
+            try {
+                await videoRef.current?.play();
+                setCameraStarting(false);
+                setStep('GUIDE_CHECK');
+                setStatus("카메라를 정면으로 봐주세요");
+                requestAnimationFrame(detectFace);
+            } catch (e) {
+                console.error("Play error:", e);
+                setCameraStarting(false);
+            }
         };
       }
     } catch (err: any) {
@@ -420,9 +429,7 @@ export default function Home() {
 
   const handleSave = async () => {
     if (!user || !finalResult) return;
-
     setStatus("저장 중...");
-
     const recommendedSize = recommendMaskSize(finalResult.front);
     const saveData = {
       user_id: user.mb_id,
@@ -449,23 +456,19 @@ export default function Home() {
   };
 
   const handleRetry = () => {
-    setStep('IDLE');
+    stopCamera(true);
     setFinalResult(null);
-    setScanProgress(0);
-    frontBufferRef.current = [];
-    profileBufferRef.current = [];
-    stableFramesRef.current = 0;
     startCamera();
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-black font-sans text-white overflow-hidden">
-      {/* 메인 뷰포트 */}
-      <div className="relative w-full h-screen max-w-md mx-auto bg-gray-900 shadow-2xl overflow-hidden">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-black font-sans text-white overflow-hidden p-4 md:p-8">
+      {/* [수정 3] PC 화면 대응: max-w-md 유지 및 max-h 설정으로 거대화 방지 */}
+      <div className="relative w-full h-[calc(100vh-2rem)] max-h-[850px] max-w-md mx-auto bg-gray-900 shadow-2xl overflow-hidden rounded-2xl border border-gray-800 ring-1 ring-white/10">
+        
         {/* 카메라 비디오 */}
         <video
           ref={videoRef}
-          autoPlay
           playsInline
           muted
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${step === 'IDLE' ? 'opacity-0' : 'opacity-100'}`}
@@ -481,7 +484,7 @@ export default function Home() {
 
         {/* 1. IDLE 상태 */}
         {step === 'IDLE' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-800 to-black">
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-800 to-black z-40">
             <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
               SmartCare AI
             </h1>
@@ -494,7 +497,7 @@ export default function Home() {
                 <ul className="text-xs text-gray-400 space-y-2 list-disc pl-4">
                   <li>밝은 곳에서 촬영해주세요</li>
                   <li>모자나 안경을 벗어주세요</li>
-                  <li>정면과 측면 측정이 진행됩니다</li>
+                  <li>PC에서는 카메라에 조금 더 가까이 와주세요</li>
                 </ul>
               </div>
 
@@ -517,7 +520,7 @@ export default function Home() {
 
         {/* 2. 가이드 오버레이 (공통) */}
         {step !== 'IDLE' && step !== 'COMPLETE' && (
-          <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 pointer-events-none z-30">
             {/* 상단 메시지 바 */}
             <div className="absolute top-0 left-0 right-0 p-8 pt-12 bg-gradient-to-b from-black/80 to-transparent text-center z-10">
               <h2 className="text-xl font-bold text-white drop-shadow-md">{status}</h2>
@@ -535,24 +538,24 @@ export default function Home() {
               {(step === 'GUIDE_CHECK' || step === 'SCANNING_FRONT' || step === 'COUNTDOWN') && (
                 <ellipse cx="50" cy="50" rx="32" ry="46" fill="none" stroke="white" strokeWidth="0.8" strokeDasharray="4 4" />
               )}
-              {/* 측면 가이드 - 화살표 (고개를 옆으로 돌리세요) */}
+              {/* 측면 가이드 - 화살표 */}
               {(step === 'GUIDE_TURN_SIDE') && (
                 <path d="M 50 20 Q 80 20 80 50" fill="none" stroke="cyan" strokeWidth="1" markerEnd="url(#arrow)" />
               )}
             </svg>
 
             {/* 측정 중단 버튼 */}
-            <div className="absolute top-4 right-4 z-20 pointer-events-auto">
+            <div className="absolute top-4 right-4 z-50 pointer-events-auto">
               <button
                 type="button"
-                onClick={stopCamera}
+                onClick={() => stopCamera(true)}
                 className="px-3 py-1.5 rounded-lg bg-black/50 hover:bg-red-600/80 text-white text-xs font-medium transition-colors"
               >
                 중단
               </button>
             </div>
 
-            {/* 카운트다운 (작게 표시) */}
+            {/* 카운트다운 */}
             {step === 'COUNTDOWN' && (
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center">
                 <div className="relative">
@@ -581,7 +584,7 @@ export default function Home() {
 
         {/* 5. 완료 결과 화면 */}
         {step === 'COMPLETE' && finalResult && (
-          <div className="absolute inset-0 bg-gray-900 flex flex-col p-6 z-30 animate-in fade-in slide-in-from-bottom-10 duration-500">
+          <div className="absolute inset-0 bg-gray-900 flex flex-col p-6 z-50 animate-in fade-in slide-in-from-bottom-10 duration-500">
             <div className="flex-1 flex flex-col items-center pt-10">
               <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6">
                 <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
