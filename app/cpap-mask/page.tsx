@@ -455,23 +455,22 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-black font-sans text-white">
-      {/* 메인 뷰포트 - 화면에 맞춰 자동 조절 (비율 유지) */}
-      <div className="relative w-full h-full max-w-full max-h-screen flex items-center justify-center bg-gray-900">
-        <div className="relative w-full h-full max-w-[100vw] max-h-[100vh] aspect-video">
-          {/* 카메라 비디오 */}
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${step === 'IDLE' ? 'opacity-0' : 'opacity-100'}`}
-            style={{ transform: 'scaleX(-1)' }}
-          />
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            style={{ transform: 'scaleX(-1)' }}
-          />
+      {/* 메인 뷰포트 - 모바일: 전체화면, PC: 비율 유지 */}
+      <div className="relative w-full h-screen md:h-auto md:max-h-screen md:aspect-video bg-gray-900 flex items-center justify-center overflow-hidden">
+        {/* 카메라 비디오 */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${step === 'IDLE' ? 'opacity-0' : 'opacity-100'}`}
+          style={{ transform: 'scaleX(-1)' }}
+        />
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full pointer-events-none"
+          style={{ transform: 'scaleX(-1)' }}
+        />
 
         {/* UI 레이어: 상태별 오버레이 */}
 
@@ -520,17 +519,22 @@ export default function Home() {
               <p className="text-sm text-cyan-300 mt-1 animate-pulse font-medium">{subStatus}</p>
             </div>
 
-            {/* 가이드라인 SVG */}
+            {/* 측면 회전 가이드 - 깔끔한 화살표 애니메이션 */}
             {step === 'GUIDE_TURN_SIDE' && (
-              <svg className="absolute inset-0 w-full h-full opacity-60" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <defs>
-                  <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
-                    <path d="M0,0 L0,6 L9,3 z" fill="cyan" />
-                  </marker>
-                </defs>
-                {/* 측면 가이드 - 화살표 (고개를 옆으로 돌리세요) */}
-                <path d="M 50 20 Q 80 20 80 50" fill="none" stroke="cyan" strokeWidth="1" markerEnd="url(#arrow)" />
-              </svg>
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="flex items-center gap-4 animate-pulse">
+                  {/* 왼쪽 화살표 */}
+                  <div className="flex items-center gap-2">
+                    <svg className="w-16 h-16 text-cyan-400 animate-bounce" style={{ animationDirection: 'alternate', animationDuration: '1s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    <div className="text-cyan-400 font-bold text-2xl">또는</div>
+                    <svg className="w-16 h-16 text-cyan-400 animate-bounce" style={{ animationDirection: 'alternate', animationDuration: '1s', animationDelay: '0.5s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* 측정 중단 버튼 */}
