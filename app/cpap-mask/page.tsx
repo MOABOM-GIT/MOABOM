@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { getMoabomUser, type MoabomUser } from "@/lib/moabom-auth";
 import { getOrCreateUserProfile, saveMeasurement, getLatestMeasurement, type MeasureLog } from "@/lib/supabase";
+import { useMoabomTheme } from "@/lib/use-moabom-theme";
 import { FaceLandmarker } from '@mediapipe/tasks-vision';
 import {
   performMeasurement,
@@ -38,6 +39,9 @@ const YAW_THRESHOLD_FRONT = 10; // 정면 허용 각도
 const YAW_THRESHOLD_PROFILE = 35; // 측면 인식 최소 각도
 
 export default function Home() {
+  // 모아봄 테마 동기화
+  const { theme, primaryColor, isDark } = useMoabomTheme({ debug: true });
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
