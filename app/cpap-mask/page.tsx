@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { getMoabomUser, type MoabomUser } from "@/lib/moabom-auth";
 import { getOrCreateUserProfile, saveMeasurement, getLatestMeasurement, type MeasureLog } from "@/lib/supabase";
-import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { FaceLandmarker } from '@mediapipe/tasks-vision';
 import {
   performMeasurement,
   recommendMaskSize,
@@ -12,7 +12,9 @@ import {
   estimateYaw,
   performProfileMeasurement,
   type ProfileMeasurements,
-  LANDMARKS
+  initializeFaceLandmarker,
+  PoseValidator,
+  FaceMeasurementSession
 } from "@/lib/face-measurement";
 
 // 측정 단계 정의
@@ -50,13 +52,10 @@ export default function Home() {
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const [scanProgress, setScanProgress] = useState(0); // 0–100, 프로그레스바용
 
-  // 데이터 버퍼 (Ref로 관리하여 Loop 내 접근 보장)
-  const frontBufferRef = useRef<FaceMeasurements[]>([]);
-  const profileBufferRef = useRef<ProfileMeasurements[]>([]);
+  // 측정 세션 관리
+  const measurementSessionRef = useRef<FaceMeasurementSession>(new FaceMeasurementSession(SCAN_FRAMES));
 
   const [finalResult, setFinalResult] = useState<{ front: FaceMeasurements, profile: ProfileMeasurements } | null>(null);
-  const [fixedScaleFactor, setFixedScaleFactor] = useState<number>(0);
-  const fixedScaleFactorRef = useRef<number>(0);
 
   const animationFrameRef = useRef<number | null>(null);
   const stableFramesRef = useRef(0); // 자세 안정화 프레임 카운터
@@ -64,25 +63,12 @@ export default function Home() {
 
   // State 동기화
   useEffect(() => { stepRef.current = step; }, [step]);
-  useEffect(() => { fixedScaleFactorRef.current = fixedScaleFactor; }, [fixedScaleFactor]);
 
   // MediaPipe 초기화
   useEffect(() => {
     const initMediaPipe = async () => {
       try {
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-        );
-
-        const landmarker = await FaceLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-            delegate: "GPU"
-          },
-          runningMode: "VIDEO",
-          numFaces: 1,
-        });
-
+        const landmarker = await initializeFaceLandmarker();
         setFaceLandmarker(landmarker);
       } catch (error) {
         console.error('[MediaPipe] Initialization error:', error);
@@ -131,7 +117,7 @@ export default function Home() {
           clearInterval(timer);
           setScanProgress(0);
           setStep('SCANNING_FRONT');
-          frontBufferRef.current = [];
+          measurementSessionRef.current.reset();
         }
       }, 1000);
       return () => clearInterval(timer);
@@ -215,20 +201,19 @@ export default function Home() {
 
   // 단계별 처리 로직
   const processStep = (currentStep: MeasurementStep, measurements: FaceMeasurements, yaw: number, landmarks: any[]) => {
+    const session = measurementSessionRef.current;
+
     switch (currentStep) {
       case 'GUIDE_CHECK':
-        // 정면 응시 확인 (Yaw가 0에 가까워야 함)
-        if (Math.abs(yaw) < YAW_THRESHOLD_FRONT) {
+        // 정면 응시 확인
+        if (PoseValidator.isFrontFacing(yaw, YAW_THRESHOLD_FRONT)) {
           stableFramesRef.current++;
           setSubStatus(`정면 확인 중... ${Math.min(stableFramesRef.current, 20)}/20`);
 
-          if (stableFramesRef.current > 20) { // 약 0.6초 유지
+          if (stableFramesRef.current > 20) {
             setStatus("측정을 시작합니다");
             setSubStatus("");
-
-            // State Update
             setStep('COUNTDOWN');
-            // Ref Update (즉시 반영을 위해)
             stepRef.current = 'COUNTDOWN';
           }
         } else {
@@ -239,25 +224,19 @@ export default function Home() {
 
       case 'SCANNING_FRONT': {
         // 정면 데이터 수집
-        frontBufferRef.current.push(measurements);
-        const len = frontBufferRef.current.length;
-        const pct = Math.round((len / SCAN_FRAMES) * 100);
-        // 10프레임마다 한 번만 상태 업데이트 (리렌더 스로틀)
-        if (len % 10 === 1 || len >= SCAN_FRAMES) {
-          setScanProgress(pct);
+        session.addFrontMeasurement(measurements);
+        const progress = session.getFrontProgress();
+        
+        if (session.getFrontProgress() % 10 === 1 || session.isFrontComplete()) {
+          setScanProgress(progress);
           setStatus("정면 스캔 중...");
-          setSubStatus(`${pct}% 완료`);
+          setSubStatus(`${progress}% 완료`);
         }
 
-        if (len >= SCAN_FRAMES) {
-          // 정면 스캔 완료 시 스케일 팩터 고정
-          const avgScale = frontBufferRef.current.reduce((acc, cur) => acc + cur.scaleFactor, 0) / frontBufferRef.current.length;
-          setFixedScaleFactor(avgScale);
-          fixedScaleFactorRef.current = avgScale; // Sync Ref
-
+        if (session.isFrontComplete()) {
+          session.finalizeFrontMeasurement();
           setStep('GUIDE_TURN_SIDE');
           stepRef.current = 'GUIDE_TURN_SIDE';
-
           setStatus("측면 측정");
           setSubStatus("고개를 천천히 옆으로 돌려주세요");
           stableFramesRef.current = 0;
@@ -267,33 +246,33 @@ export default function Home() {
       }
 
       case 'GUIDE_TURN_SIDE':
-        // 측면 회전 확인 (Yaw가 일정 이상이어야 함)
-        if (Math.abs(yaw) > YAW_THRESHOLD_PROFILE) {
+        // 측면 회전 확인
+        if (PoseValidator.isProfileFacing(yaw, YAW_THRESHOLD_PROFILE)) {
           stableFramesRef.current++;
 
           if (stableFramesRef.current > 10) {
             setStep('SCANNING_PROFILE');
             stepRef.current = 'SCANNING_PROFILE';
-            profileBufferRef.current = []; // 초기화
           }
         } else {
-          stableFramesRef.current = 0; // 다시 돌아오면 리셋
+          stableFramesRef.current = 0;
         }
         break;
 
       case 'SCANNING_PROFILE': {
-        // 측면 데이터 수집 - 고정된 스케일 팩터 사용 (Ref)
-        const profileData = performProfileMeasurement(landmarks, fixedScaleFactorRef.current);
-        profileBufferRef.current.push(profileData);
-        const plen = profileBufferRef.current.length;
-        const ppct = Math.round((plen / SCAN_FRAMES) * 100);
-        if (plen % 10 === 1 || plen >= SCAN_FRAMES) {
-          setScanProgress(ppct);
+        // 측면 데이터 수집
+        const fixedScale = session.getFixedScaleFactor();
+        const profileData = performProfileMeasurement(landmarks, fixedScale);
+        session.addProfileMeasurement(profileData);
+        
+        const progress = session.getProfileProgress();
+        if (progress % 10 === 1 || session.isProfileComplete()) {
+          setScanProgress(progress);
           setStatus("측면 스캔 중...");
-          setSubStatus(`${ppct}% 완료`);
+          setSubStatus(`${progress}% 완료`);
         }
 
-        if (plen >= SCAN_FRAMES) {
+        if (session.isProfileComplete()) {
           finishMeasurement();
         }
         break;
@@ -303,15 +282,14 @@ export default function Home() {
 
   // 측정 완료 및 결과 처리
   const finishMeasurement = () => {
-    // 평균값 계산
-    const avgFront = calculateAverageFront(frontBufferRef.current);
-    const avgProfile = calculateAverageProfile(profileBufferRef.current);
+    const results = measurementSessionRef.current.getFinalResults();
+    
+    if (!results) {
+      setStatus("에러: 측정 데이터 부족");
+      return;
+    }
 
-    setFinalResult({
-      front: avgFront,
-      profile: avgProfile
-    });
-
+    setFinalResult(results);
     setStep('COMPLETE');
     setStatus("측정 완료");
     setSubStatus("결과를 확인하고 저장하세요");
@@ -321,54 +299,6 @@ export default function Home() {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
     }
-  };
-
-  const calculateAverageFront = (buffer: FaceMeasurements[]): FaceMeasurements => {
-    if (buffer.length === 0) {
-      return {
-        noseWidth: 0,
-        faceLength: 0,
-        chinAngle: 0,
-        ipdPixels: 0,
-        scaleFactor: 0,
-        confidence: 0
-      };
-    }
-
-    // 간단 평균
-    const sum = buffer.reduce((acc, cur) => ({
-      noseWidth: acc.noseWidth + cur.noseWidth,
-      faceLength: acc.faceLength + cur.faceLength,
-      chinAngle: acc.chinAngle + cur.chinAngle,
-      ipdPixels: acc.ipdPixels + cur.ipdPixels,
-      scaleFactor: acc.scaleFactor + cur.scaleFactor,
-      confidence: acc.confidence
-    }), { noseWidth: 0, faceLength: 0, chinAngle: 0, ipdPixels: 0, scaleFactor: 0, confidence: 0 });
-
-    const count = buffer.length;
-    return {
-      noseWidth: Math.round(sum.noseWidth / count * 10) / 10,
-      faceLength: Math.round(sum.faceLength / count * 10) / 10,
-      chinAngle: Math.round(sum.chinAngle / count * 10) / 10,
-      ipdPixels: sum.ipdPixels / count,
-      scaleFactor: sum.scaleFactor / count,
-      confidence: 0.95
-    };
-  };
-
-  const calculateAverageProfile = (buffer: ProfileMeasurements[]): ProfileMeasurements => {
-    if (buffer.length === 0) return { noseHeight: 0, faceDepth: 0 };
-
-    const sum = buffer.reduce((acc, cur) => ({
-      noseHeight: acc.noseHeight + cur.noseHeight,
-      faceDepth: acc.faceDepth + cur.faceDepth
-    }), { noseHeight: 0, faceDepth: 0 });
-
-    const count = buffer.length;
-    return {
-      noseHeight: Math.round(sum.noseHeight / count * 10) / 10,
-      faceDepth: Math.round(sum.faceDepth / count * 10) / 10
-    };
   };
 
   const stopCamera = useCallback(() => {
@@ -388,8 +318,7 @@ export default function Home() {
     // 상태 초기화
     setStep('IDLE');
     setScanProgress(0);
-    frontBufferRef.current = [];
-    profileBufferRef.current = [];
+    measurementSessionRef.current.reset();
     stableFramesRef.current = 0;
     lastTimestampRef.current = 0;
   }, []);
@@ -506,8 +435,7 @@ export default function Home() {
     stepRef.current = 'IDLE';
     setFinalResult(null);
     setScanProgress(0);
-    frontBufferRef.current = [];
-    profileBufferRef.current = [];
+    measurementSessionRef.current.reset();
     stableFramesRef.current = 0;
     lastTimestampRef.current = 0;
     
@@ -584,21 +512,17 @@ export default function Home() {
             </div>
 
             {/* 가이드라인 SVG */}
-            <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <defs>
-                <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
-                  <path d="M0,0 L0,6 L9,3 z" fill="cyan" />
-                </marker>
-              </defs>
-              {/* 정면 가이드 - 계란형 */}
-              {(step === 'GUIDE_CHECK' || step === 'SCANNING_FRONT' || step === 'COUNTDOWN') && (
-                <ellipse cx="50" cy="50" rx="32" ry="46" fill="none" stroke="white" strokeWidth="0.8" strokeDasharray="4 4" />
-              )}
-              {/* 측면 가이드 - 화살표 (고개를 옆으로 돌리세요) */}
-              {(step === 'GUIDE_TURN_SIDE') && (
+            {step === 'GUIDE_TURN_SIDE' && (
+              <svg className="absolute inset-0 w-full h-full opacity-60" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <defs>
+                  <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="cyan" />
+                  </marker>
+                </defs>
+                {/* 측면 가이드 - 화살표 (고개를 옆으로 돌리세요) */}
                 <path d="M 50 20 Q 80 20 80 50" fill="none" stroke="cyan" strokeWidth="1" markerEnd="url(#arrow)" />
-              )}
-            </svg>
+              </svg>
+            )}
 
             {/* 측정 중단 버튼 */}
             <div className="absolute top-4 right-4 z-20 pointer-events-auto">

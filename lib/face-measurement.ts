@@ -3,7 +3,7 @@
  * MediaPipe Face Landmarker를 사용한 실제 거리 측정
  */
 
-import { FaceLandmarker, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
+import { FaceLandmarker, FaceLandmarkerResult, FilesetResolver } from '@mediapipe/tasks-vision';
 
 // 주요 랜드마크 인덱스 (MediaPipe Face Mesh 기준)
 export const LANDMARKS = {
@@ -266,6 +266,197 @@ export function recommendMaskSize(measurements: FaceMeasurements): string {
     return 'M';
   } else {
     return 'L';
+  }
+}
+
+/**
+ * MediaPipe FaceLandmarker 초기화
+ */
+export async function initializeFaceLandmarker(): Promise<FaceLandmarker> {
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+  );
+
+  const landmarker = await FaceLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+      delegate: "GPU"
+    },
+    runningMode: "VIDEO",
+    numFaces: 1,
+  });
+
+  return landmarker;
+}
+
+/**
+ * 자세 검증 유틸리티
+ */
+export class PoseValidator {
+  static isFrontFacing(yaw: number, threshold: number = 10): boolean {
+    return Math.abs(yaw) < threshold;
+  }
+
+  static isProfileFacing(yaw: number, threshold: number = 35): boolean {
+    return Math.abs(yaw) > threshold;
+  }
+}
+
+/**
+ * 측정 데이터 버퍼 관리
+ */
+export class MeasurementBuffer<T extends FaceMeasurements | ProfileMeasurements> {
+  private buffer: T[] = [];
+  private maxSize: number;
+
+  constructor(maxSize: number = 90) {
+    this.maxSize = maxSize;
+  }
+
+  add(measurement: T): void {
+    this.buffer.push(measurement);
+  }
+
+  getProgress(): number {
+    return Math.round((this.buffer.length / this.maxSize) * 100);
+  }
+
+  isFull(): boolean {
+    return this.buffer.length >= this.maxSize;
+  }
+
+  getAverage(): T | null {
+    if (this.buffer.length === 0) return null;
+
+    const first = this.buffer[0];
+    
+    // FaceMeasurements 타입 체크
+    if ('noseWidth' in first) {
+      const sum = this.buffer.reduce((acc, cur) => {
+        const m = cur as FaceMeasurements;
+        return {
+          noseWidth: acc.noseWidth + m.noseWidth,
+          faceLength: acc.faceLength + m.faceLength,
+          chinAngle: acc.chinAngle + m.chinAngle,
+          ipdPixels: acc.ipdPixels + m.ipdPixels,
+          scaleFactor: acc.scaleFactor + m.scaleFactor,
+          confidence: acc.confidence
+        };
+      }, { noseWidth: 0, faceLength: 0, chinAngle: 0, ipdPixels: 0, scaleFactor: 0, confidence: 0 });
+
+      const count = this.buffer.length;
+      return {
+        noseWidth: Math.round(sum.noseWidth / count * 10) / 10,
+        faceLength: Math.round(sum.faceLength / count * 10) / 10,
+        chinAngle: Math.round(sum.chinAngle / count * 10) / 10,
+        ipdPixels: sum.ipdPixels / count,
+        scaleFactor: sum.scaleFactor / count,
+        confidence: 0.95
+      } as T;
+    }
+    
+    // ProfileMeasurements 타입
+    if ('noseHeight' in first) {
+      const sum = this.buffer.reduce((acc, cur) => {
+        const m = cur as ProfileMeasurements;
+        return {
+          noseHeight: acc.noseHeight + m.noseHeight,
+          faceDepth: acc.faceDepth + m.faceDepth
+        };
+      }, { noseHeight: 0, faceDepth: 0 });
+
+      const count = this.buffer.length;
+      return {
+        noseHeight: Math.round(sum.noseHeight / count * 10) / 10,
+        faceDepth: Math.round(sum.faceDepth / count * 10) / 10
+      } as T;
+    }
+
+    return null;
+  }
+
+  getAverageScaleFactor(): number {
+    if (this.buffer.length === 0) return 0;
+    
+    const first = this.buffer[0];
+    if ('scaleFactor' in first) {
+      const sum = this.buffer.reduce((acc, cur) => {
+        const m = cur as FaceMeasurements;
+        return acc + m.scaleFactor;
+      }, 0);
+      return sum / this.buffer.length;
+    }
+    
+    return 0;
+  }
+
+  clear(): void {
+    this.buffer = [];
+  }
+
+  getLength(): number {
+    return this.buffer.length;
+  }
+}
+
+/**
+ * 측정 세션 관리 클래스
+ */
+export class FaceMeasurementSession {
+  private frontBuffer: MeasurementBuffer<FaceMeasurements>;
+  private profileBuffer: MeasurementBuffer<ProfileMeasurements>;
+  private fixedScaleFactor: number = 0;
+
+  constructor(scanFrames: number = 90) {
+    this.frontBuffer = new MeasurementBuffer<FaceMeasurements>(scanFrames);
+    this.profileBuffer = new MeasurementBuffer<ProfileMeasurements>(scanFrames);
+  }
+
+  addFrontMeasurement(measurement: FaceMeasurements): void {
+    this.frontBuffer.add(measurement);
+  }
+
+  addProfileMeasurement(measurement: ProfileMeasurements): void {
+    this.profileBuffer.add(measurement);
+  }
+
+  getFrontProgress(): number {
+    return this.frontBuffer.getProgress();
+  }
+
+  getProfileProgress(): number {
+    return this.profileBuffer.getProgress();
+  }
+
+  isFrontComplete(): boolean {
+    return this.frontBuffer.isFull();
+  }
+
+  isProfileComplete(): boolean {
+    return this.profileBuffer.isFull();
+  }
+
+  finalizeFrontMeasurement(): void {
+    this.fixedScaleFactor = this.frontBuffer.getAverageScaleFactor();
+  }
+
+  getFixedScaleFactor(): number {
+    return this.fixedScaleFactor;
+  }
+
+  getFinalResults(): { front: FaceMeasurements; profile: ProfileMeasurements } | null {
+    const front = this.frontBuffer.getAverage();
+    const profile = this.profileBuffer.getAverage();
+
+    if (!front || !profile) return null;
+
+    return { front, profile };
+  }
+
+  reset(): void {
+    this.frontBuffer.clear();
+    this.profileBuffer.clear();
+    this.fixedScaleFactor = 0;
   }
 }
 
