@@ -54,8 +54,12 @@ export const LANDMARKS = {
   EAR_RIGHT: 454,
 };
 
-// 평균 IPD (눈동자 간 거리) - mm 단위
-const AVERAGE_IPD_MM = 63; // 성인 평균
+// 평균 IPD (눈동자 간 거리) - mm 단위 (성별 구분)
+const AVERAGE_IPD_MM = {
+  male: 64,
+  female: 62,
+  default: 63
+};
 
 /** MediaPipe 랜드마크는 0~1 정규화 좌표. 눈 간 거리가 이 값 이상이어야 정확한 mm 환산 가능 (너무 멀면 과대 측정) */
 export const MIN_IPD_NORMALIZED = 0.10;
@@ -90,10 +94,23 @@ export function calculateIPDPixels(landmarks: any[], width: number, height: numb
 }
 
 /**
- * 픽셀을 mm로 변환하는 스케일 팩터 계산
+ * 사용자 프로필 (설문 데이터)
  */
-export function calculateScaleFactor(ipdPixels: number): number {
-  return AVERAGE_IPD_MM / ipdPixels;
+export interface UserProfile {
+  gender: 'male' | 'female';
+  ageGroup: '20s' | '30s' | '40s' | '50s' | '60+';
+  tossing: 'low' | 'medium' | 'high';
+  mouthBreathing: boolean;
+  pressure: 'low' | 'medium' | 'high'; // <10, 10-15, 15+
+  preferredTypes: ('nasal' | 'pillow' | 'full')[];
+}
+
+/**
+ * 픽셀을 mm로 변환하는 스케일 팩터 계산 (성별 고려)
+ */
+export function calculateScaleFactor(ipdPixels: number, gender: 'male' | 'female' | 'default' = 'default'): number {
+  const avgIPD = AVERAGE_IPD_MM[gender];
+  return avgIPD / ipdPixels;
 }
 
 /**
@@ -227,7 +244,7 @@ export interface FaceMeasurements {
   confidence: number;
 }
 
-export function performMeasurement(result: FaceLandmarkerResult, width: number, height: number): FaceMeasurements | null {
+export function performMeasurement(result: FaceLandmarkerResult, width: number, height: number, gender: 'male' | 'female' | 'default' = 'default'): FaceMeasurements | null {
   if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
     return null;
   }
@@ -237,8 +254,8 @@ export function performMeasurement(result: FaceLandmarkerResult, width: number, 
   // 1. IPD 계산 (기준점) - 실제 픽셀 거리
   const ipdPixels = calculateIPDPixels(landmarks, width, height);
 
-  // 2. 스케일 팩터 계산
-  const scaleFactor = calculateScaleFactor(ipdPixels);
+  // 2. 스케일 팩터 계산 (성별 고려)
+  const scaleFactor = calculateScaleFactor(ipdPixels, gender);
 
   // 3. 각 부위 측정
   const noseWidth = measureNoseWidth(landmarks, scaleFactor, width, height);
@@ -336,7 +353,180 @@ export function performProfileMeasurement(landmarks: any[], scaleFactor: number,
 }
 
 /**
- * 마스크 사이즈 추천 - 개선된 알고리즘
+ * 마스크 추천 결과
+ */
+export interface MaskRecommendation {
+  size: string;
+  types: {
+    type: 'nasal' | 'pillow' | 'full';
+    score: number;
+    reasons: string[];
+    warnings?: string[];
+  }[];
+  overallReasons: string[];
+}
+
+/**
+ * 마스크 사이즈 추천 - 개선된 알고리즘 (설문 데이터 통합)
+ */
+export function recommendMaskAdvanced(
+  measurements: FaceMeasurements,
+  profile: ProfileMeasurements,
+  userProfile: UserProfile
+): MaskRecommendation {
+  const { noseWidth, faceLength, faceWidth, mouthWidth, philtrumLength, bridgeWidth } = measurements;
+  const { noseHeight, jawProjection } = profile;
+
+  // 1. 사이즈 결정 (기존 로직)
+  let sizeScore = 0;
+
+  if (noseWidth < 35) sizeScore += 1;
+  else if (noseWidth < 40) sizeScore += 2;
+  else sizeScore += 3;
+
+  if (faceLength < 180) sizeScore += 1;
+  else if (faceLength < 210) sizeScore += 2;
+  else sizeScore += 3;
+
+  if (faceWidth < 130) sizeScore += 1;
+  else if (faceWidth < 150) sizeScore += 2;
+  else sizeScore += 3;
+
+  if (mouthWidth < 45) sizeScore += 1;
+  else if (mouthWidth < 55) sizeScore += 2;
+  else sizeScore += 3;
+
+  const size = sizeScore <= 6 ? 'S' : sizeScore <= 10 ? 'M' : 'L';
+
+  // 2. 마스크 타입별 점수 계산
+  const typeScores: { [key: string]: { score: number; reasons: string[]; warnings: string[] } } = {
+    nasal: { score: 50, reasons: [], warnings: [] },
+    pillow: { score: 50, reasons: [], warnings: [] },
+    full: { score: 50, reasons: [], warnings: [] }
+  };
+
+  // 3. 연령대별 추천
+  const ageRecommendations: { [key: string]: { nasal: number; pillow: number; full: number } } = {
+    '20s': { nasal: 15, pillow: 15, full: 0 },
+    '30s': { nasal: 15, pillow: 10, full: 5 },
+    '40s': { nasal: 10, pillow: 5, full: 10 },
+    '50s': { nasal: 5, pillow: 0, full: 15 },
+    '60+': { nasal: 0, pillow: 0, full: 20 }
+  };
+
+  Object.entries(ageRecommendations[userProfile.ageGroup]).forEach(([type, bonus]) => {
+    typeScores[type].score += bonus;
+    if (bonus > 10) {
+      typeScores[type].reasons.push(`${userProfile.ageGroup} 연령대에 적합`);
+    }
+  });
+
+  // 4. 구강호흡 여부
+  if (userProfile.mouthBreathing) {
+    typeScores.full.score += 30;
+    typeScores.full.reasons.push('구강호흡자에게 필수');
+    typeScores.nasal.warnings.push('구강호흡 시 비효율적');
+    typeScores.pillow.warnings.push('구강호흡 시 비효율적');
+  } else {
+    typeScores.nasal.score += 10;
+    typeScores.pillow.score += 10;
+  }
+
+  // 5. 압력 수치
+  if (userProfile.pressure === 'high') {
+    typeScores.pillow.score -= 30;
+    typeScores.pillow.warnings.push('15cmH2O 이상 압력에는 부적합');
+    typeScores.full.score += 10;
+    typeScores.full.reasons.push('고압력에 안정적');
+  } else if (userProfile.pressure === 'low') {
+    typeScores.pillow.score += 15;
+    typeScores.pillow.reasons.push('저압력에 최적화');
+  }
+
+  // 6. 뒤척임 정도
+  if (userProfile.tossing === 'high') {
+    typeScores.pillow.score += 15;
+    typeScores.pillow.reasons.push('가볍고 움직임에 강함');
+    typeScores.full.score -= 10;
+    typeScores.full.warnings.push('무겁고 움직임 제한');
+  } else if (userProfile.tossing === 'low') {
+    typeScores.full.score += 5;
+  }
+
+  // 7. 얼굴 측정값 기반 추천
+  // 코 높이
+  if (noseHeight > 18) {
+    typeScores.nasal.score += 10;
+    typeScores.nasal.reasons.push('높은 코에 적합');
+  } else if (noseHeight < 12) {
+    typeScores.pillow.score += 10;
+    typeScores.pillow.reasons.push('낮은 코에 편안함');
+  }
+
+  // 인중 길이
+  if (philtrumLength < 15) {
+    typeScores.nasal.warnings.push('짧은 인중으로 압박 가능');
+    typeScores.pillow.score += 5;
+  }
+
+  // 입 너비 (풀페이스 밀착도)
+  if (mouthWidth > 70) {
+    typeScores.full.score += 10;
+    typeScores.full.reasons.push('넓은 입에 안정적 밀착');
+  }
+
+  // 미간 너비 (콧대 압박)
+  if (bridgeWidth < 30) {
+    typeScores.nasal.warnings.push('좁은 미간으로 압박 가능');
+    typeScores.pillow.score += 5;
+  }
+
+  // 턱 돌출
+  if (jawProjection < 5) {
+    typeScores.full.warnings.push('무턱으로 하단 누출 가능');
+  }
+
+  // 8. 사용자 선호도 반영
+  userProfile.preferredTypes.forEach(type => {
+    typeScores[type].score += 20;
+    typeScores[type].reasons.push('사용자 선호');
+  });
+
+  // 9. 최종 정렬 및 결과 생성
+  const sortedTypes = Object.entries(typeScores)
+    .map(([type, data]) => ({
+      type: type as 'nasal' | 'pillow' | 'full',
+      score: Math.max(0, Math.min(100, data.score)), // 0-100 범위로 제한
+      reasons: data.reasons,
+      warnings: data.warnings
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  // 10. 전체 추천 이유
+  const overallReasons: string[] = [];
+  overallReasons.push(`얼굴 측정 결과: ${size} 사이즈`);
+  
+  if (userProfile.mouthBreathing) {
+    overallReasons.push('구강호흡으로 풀페이스 권장');
+  }
+  
+  if (userProfile.pressure === 'high') {
+    overallReasons.push('고압력 사용으로 안정적인 마스크 필요');
+  }
+  
+  if (userProfile.tossing === 'high') {
+    overallReasons.push('뒤척임이 많아 가벼운 마스크 권장');
+  }
+
+  return {
+    size,
+    types: sortedTypes,
+    overallReasons
+  };
+}
+
+/**
+ * 마스크 사이즈 추천 - 기본 버전 (하위 호환성)
  */
 export function recommendMaskSize(measurements: FaceMeasurements): string {
   const { noseWidth, faceLength, faceWidth, mouthWidth } = measurements;

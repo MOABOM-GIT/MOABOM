@@ -7,8 +7,11 @@ import { FaceLandmarker } from '@mediapipe/tasks-vision';
 import {
   performMeasurement,
   recommendMaskSize,
+  recommendMaskAdvanced,
   drawLandmarks,
   type FaceMeasurements,
+  type UserProfile,
+  type MaskRecommendation,
   estimateYaw,
   performProfileMeasurement,
   type ProfileMeasurements,
@@ -19,6 +22,7 @@ import {
 
 // 측정 단계 정의
 type MeasurementStep =
+  | 'SURVEY'          // 설문 조사
   | 'IDLE'
   | 'INIT'
   | 'GUIDE_CHECK'     // 정면 가이드 맞추기
@@ -38,8 +42,18 @@ export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // 상태 관리
-  const [step, setStep] = useState<MeasurementStep>('IDLE');
-  const stepRef = useRef<MeasurementStep>('IDLE'); // Loop용 Ref
+  const [step, setStep] = useState<MeasurementStep>('SURVEY');
+  const stepRef = useRef<MeasurementStep>('SURVEY'); // Loop용 Ref
+
+  // 설문 데이터
+  const [userProfile, setUserProfile] = useState<UserProfile>({
+    gender: 'male',
+    ageGroup: '30s',
+    tossing: 'medium',
+    mouthBreathing: false,
+    pressure: 'medium',
+    preferredTypes: []
+  });
 
   const [status, setStatus] = useState("준비 완료");
   const [subStatus, setSubStatus] = useState("");
@@ -56,6 +70,7 @@ export default function Home() {
   const measurementSessionRef = useRef<FaceMeasurementSession>(new FaceMeasurementSession(SCAN_FRAMES));
 
   const [finalResult, setFinalResult] = useState<{ front: FaceMeasurements, profile: ProfileMeasurements } | null>(null);
+  const [recommendation, setRecommendation] = useState<MaskRecommendation | null>(null);
 
   const animationFrameRef = useRef<number | null>(null);
   const stableFramesRef = useRef(0); // 자세 안정화 프레임 카운터
@@ -159,8 +174,8 @@ export default function Home() {
         // 기본 드로잉 (얼굴 감지됨)
         drawLandmarks(ctx, landmarks, canvas.width, canvas.height, true);
 
-        // 측정값 계산 - 캔버스 크기 전달
-        const measurements = performMeasurement(results, canvas.width, canvas.height);
+        // 측정값 계산 - 캔버스 크기 + 성별 전달
+        const measurements = performMeasurement(results, canvas.width, canvas.height, userProfile.gender);
         const yaw = estimateYaw(landmarks);
 
         if (measurements) {
@@ -293,6 +308,11 @@ export default function Home() {
     }
 
     setFinalResult(results);
+    
+    // 종합 추천 생성
+    const advancedRecommendation = recommendMaskAdvanced(results.front, results.profile, userProfile);
+    setRecommendation(advancedRecommendation);
+    
     setStep('COMPLETE');
     setStatus("측정 완료");
     setSubStatus("결과를 확인하고 저장하세요");
@@ -479,7 +499,7 @@ export default function Home() {
           autoPlay
           playsInline
           muted
-          className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${step === 'IDLE' ? 'opacity-0' : 'opacity-100'}`}
+          className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${step === 'IDLE' || step === 'SURVEY' ? 'opacity-0' : 'opacity-100'}`}
           style={{ transform: 'scaleX(-1)' }}
         />
         <canvas
@@ -489,6 +509,186 @@ export default function Home() {
         />
 
         {/* UI 레이어: 상태별 오버레이 */}
+
+        {/* 0. 설문 화면 */}
+        {step === 'SURVEY' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-start p-6 bg-gradient-to-b from-gray-800 to-black overflow-y-auto">
+            <h1 className="text-2xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 mt-6">
+              SmartCare AI
+            </h1>
+            <p className="text-gray-400 mb-6 text-center text-sm">
+              정확한 마스크 추천을 위해 몇 가지 질문에 답해주세요
+            </p>
+
+            <div className="w-full max-w-md space-y-6">
+              {/* 성별 */}
+              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">성별</h3>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setUserProfile({...userProfile, gender: 'male'})}
+                    className={`flex-1 py-3 rounded-lg font-medium transition-all ${
+                      userProfile.gender === 'male' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    남성
+                  </button>
+                  <button
+                    onClick={() => setUserProfile({...userProfile, gender: 'female'})}
+                    className={`flex-1 py-3 rounded-lg font-medium transition-all ${
+                      userProfile.gender === 'female' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    여성
+                  </button>
+                </div>
+              </div>
+
+              {/* 연령대 */}
+              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">연령대</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['20s', '30s', '40s', '50s', '60+'] as const).map((age) => (
+                    <button
+                      key={age}
+                      onClick={() => setUserProfile({...userProfile, ageGroup: age})}
+                      className={`py-2 rounded-lg text-sm font-medium transition-all ${
+                        userProfile.ageGroup === age 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      {age === '60+' ? '60대+' : age.replace('s', '대')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 수면 습관 */}
+              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">😴 수면 중 뒤척임</h3>
+                <div className="flex gap-3">
+                  {(['low', 'medium', 'high'] as const).map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => setUserProfile({...userProfile, tossing: level})}
+                      className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all ${
+                        userProfile.tossing === level 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      {level === 'low' ? '적음' : level === 'medium' ? '보통' : '많음'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 구강호흡 */}
+              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">💨 수면 중 구강호흡</h3>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setUserProfile({...userProfile, mouthBreathing: true})}
+                    className={`flex-1 py-3 rounded-lg font-medium transition-all ${
+                      userProfile.mouthBreathing 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    예
+                  </button>
+                  <button
+                    onClick={() => setUserProfile({...userProfile, mouthBreathing: false})}
+                    className={`flex-1 py-3 rounded-lg font-medium transition-all ${
+                      !userProfile.mouthBreathing 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    아니오
+                  </button>
+                </div>
+              </div>
+
+              {/* 압력 수치 */}
+              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">🌬️ 양압기 압력 (cmH2O)</h3>
+                <div className="flex gap-3">
+                  {(['low', 'medium', 'high'] as const).map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => setUserProfile({...userProfile, pressure: level})}
+                      className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all ${
+                        userProfile.pressure === level 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      {level === 'low' ? '10 이하' : level === 'medium' ? '10-15' : '15 이상'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 선호 마스크 */}
+              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-300 mb-2">🎭 선호 마스크 타입 (복수선택)</h3>
+                <p className="text-xs text-gray-500 mb-3">관심있는 타입을 모두 선택하세요</p>
+                <div className="space-y-2">
+                  {[
+                    { type: 'nasal' as const, label: '나잘 (코만 덮음)', desc: '청장년층에 적합' },
+                    { type: 'pillow' as const, label: '필로우 (콧구멍만)', desc: '가볍고 편안함, 저압력용' },
+                    { type: 'full' as const, label: '풀페이스 (코+입)', desc: '구강호흡자, 중노년층' }
+                  ].map(({ type, label, desc }) => (
+                    <button
+                      key={type}
+                      onClick={() => {
+                        const current = userProfile.preferredTypes;
+                        const updated = current.includes(type)
+                          ? current.filter(t => t !== type)
+                          : [...current, type];
+                        setUserProfile({...userProfile, preferredTypes: updated});
+                      }}
+                      className={`w-full p-3 rounded-lg text-left transition-all ${
+                        userProfile.preferredTypes.includes(type)
+                          ? 'bg-blue-600 text-white border-2 border-blue-400' 
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600 border-2 border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-sm">{label}</div>
+                          <div className="text-xs opacity-70 mt-0.5">{desc}</div>
+                        </div>
+                        {userProfile.preferredTypes.includes(type) && (
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 다음 버튼 */}
+              <button
+                onClick={() => {
+                  setStep('IDLE');
+                  setStatus('준비 완료');
+                }}
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 font-bold text-white shadow-lg transition-all active:scale-95"
+              >
+                다음: 얼굴 측정 →
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 1. IDLE 상태 */}
         {step === 'IDLE' && (
@@ -622,7 +822,7 @@ export default function Home() {
         )}
 
         {/* 5. 완료 결과 화면 */}
-        {step === 'COMPLETE' && finalResult && (
+        {step === 'COMPLETE' && finalResult && recommendation && (
           <div className="absolute inset-0 bg-gray-900 flex flex-col z-30 animate-in fade-in slide-in-from-bottom-10 duration-500 overflow-y-auto">
             <div className="flex-1 flex flex-col items-center p-6 pt-10 min-h-0">
               <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6 flex-shrink-0">
@@ -632,57 +832,134 @@ export default function Home() {
               <h2 className="text-2xl font-bold text-white mb-1 flex-shrink-0">측정 완료</h2>
               <p className="text-gray-400 text-sm mb-8 flex-shrink-0">AI 분석 결과가 준비되었습니다.</p>
 
-              <div className="w-full max-w-md bg-gray-800 rounded-2xl p-6 border border-gray-700 space-y-4 flex-shrink-0">
-                <div className="flex justify-between items-center pb-4 border-b border-gray-700">
-                  <span className="text-gray-400">추천 사이즈</span>
-                  <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-                    {recommendMaskSize(finalResult.front)}
-                  </span>
+              <div className="w-full max-w-md space-y-4 flex-shrink-0">
+                {/* 추천 사이즈 */}
+                <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
+                  <div className="flex justify-between items-center pb-4 border-b border-gray-700">
+                    <span className="text-gray-400">추천 사이즈</span>
+                    <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+                      {recommendation.size}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="space-y-3 text-sm">
-                  {/* 정면 측정값 */}
-                  <div className="border-b border-gray-700 pb-3">
-                    <h3 className="text-xs text-gray-500 mb-2 font-semibold">정면 측정</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-black/20 p-3 rounded-lg">
-                        <div className="text-gray-500 text-xs mb-1">코 너비</div>
-                        <div className="font-semibold">{finalResult.front.noseWidth}mm</div>
+                {/* 추천 마스크 타입 */}
+                <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
+                  <h3 className="text-lg font-bold text-white mb-4">추천 마스크 타입</h3>
+                  <div className="space-y-3">
+                    {recommendation.types.map((typeRec, idx) => (
+                      <div 
+                        key={typeRec.type}
+                        className={`p-4 rounded-xl border-2 ${
+                          idx === 0 
+                            ? 'bg-blue-600/20 border-blue-500' 
+                            : 'bg-gray-700/50 border-gray-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            {idx === 0 && (
+                              <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full font-bold">
+                                1순위
+                              </span>
+                            )}
+                            <span className="font-bold text-white">
+                              {typeRec.type === 'nasal' ? '나잘' : typeRec.type === 'pillow' ? '필로우' : '풀페이스'}
+                            </span>
+                          </div>
+                          <span className="text-sm font-semibold text-cyan-400">
+                            {typeRec.score}점
+                          </span>
+                        </div>
+                        
+                        {typeRec.reasons.length > 0 && (
+                          <div className="space-y-1 mb-2">
+                            {typeRec.reasons.map((reason, i) => (
+                              <div key={i} className="flex items-start gap-2 text-xs text-green-400">
+                                <span>✓</span>
+                                <span>{reason}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {typeRec.warnings && typeRec.warnings.length > 0 && (
+                          <div className="space-y-1">
+                            {typeRec.warnings.map((warning, i) => (
+                              <div key={i} className="flex items-start gap-2 text-xs text-yellow-400">
+                                <span>⚠</span>
+                                <span>{warning}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <div className="bg-black/20 p-3 rounded-lg">
-                        <div className="text-gray-500 text-xs mb-1">얼굴 길이</div>
-                        <div className="font-semibold">{finalResult.front.faceLength}mm</div>
-                      </div>
-                      <div className="bg-black/20 p-3 rounded-lg">
-                        <div className="text-gray-500 text-xs mb-1">얼굴 폭</div>
-                        <div className="font-semibold">{finalResult.front.faceWidth}mm</div>
-                      </div>
-                      <div className="bg-black/20 p-3 rounded-lg">
-                        <div className="text-gray-500 text-xs mb-1">미간 너비</div>
-                        <div className="font-semibold">{finalResult.front.bridgeWidth}mm</div>
-                      </div>
-                      <div className="bg-black/20 p-3 rounded-lg">
-                        <div className="text-gray-500 text-xs mb-1">인중 길이</div>
-                        <div className="font-semibold text-cyan-300">{finalResult.front.philtrumLength}mm</div>
-                      </div>
-                      <div className="bg-black/20 p-3 rounded-lg">
-                        <div className="text-gray-500 text-xs mb-1">입 너비</div>
-                        <div className="font-semibold text-cyan-300">{finalResult.front.mouthWidth}mm</div>
-                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 종합 의견 */}
+                {recommendation.overallReasons.length > 0 && (
+                  <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
+                    <h3 className="text-sm font-bold text-gray-300 mb-3">💡 종합 의견</h3>
+                    <div className="space-y-2">
+                      {recommendation.overallReasons.map((reason, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                          <span className="text-blue-400">•</span>
+                          <span>{reason}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
+                )}
 
-                  {/* 측면 측정값 */}
-                  <div>
-                    <h3 className="text-xs text-gray-500 mb-2 font-semibold">측면 측정</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-black/20 p-3 rounded-lg">
-                        <div className="text-gray-500 text-xs mb-1">코 높이</div>
-                        <div className="font-semibold text-emerald-300">{finalResult.profile.noseHeight}mm</div>
+                {/* 측정값 상세 */}
+                <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
+                  <h3 className="text-sm font-bold text-gray-300 mb-3">📏 측정값 상세</h3>
+                  <div className="space-y-3 text-sm">
+                    {/* 정면 측정값 */}
+                    <div className="border-b border-gray-700 pb-3">
+                      <h4 className="text-xs text-gray-500 mb-2 font-semibold">정면 측정</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-black/20 p-3 rounded-lg">
+                          <div className="text-gray-500 text-xs mb-1">코 너비</div>
+                          <div className="font-semibold">{finalResult.front.noseWidth}mm</div>
+                        </div>
+                        <div className="bg-black/20 p-3 rounded-lg">
+                          <div className="text-gray-500 text-xs mb-1">얼굴 길이</div>
+                          <div className="font-semibold">{finalResult.front.faceLength}mm</div>
+                        </div>
+                        <div className="bg-black/20 p-3 rounded-lg">
+                          <div className="text-gray-500 text-xs mb-1">얼굴 폭</div>
+                          <div className="font-semibold">{finalResult.front.faceWidth}mm</div>
+                        </div>
+                        <div className="bg-black/20 p-3 rounded-lg">
+                          <div className="text-gray-500 text-xs mb-1">미간 너비</div>
+                          <div className="font-semibold">{finalResult.front.bridgeWidth}mm</div>
+                        </div>
+                        <div className="bg-black/20 p-3 rounded-lg">
+                          <div className="text-gray-500 text-xs mb-1">인중 길이</div>
+                          <div className="font-semibold text-cyan-300">{finalResult.front.philtrumLength}mm</div>
+                        </div>
+                        <div className="bg-black/20 p-3 rounded-lg">
+                          <div className="text-gray-500 text-xs mb-1">입 너비</div>
+                          <div className="font-semibold text-cyan-300">{finalResult.front.mouthWidth}mm</div>
+                        </div>
                       </div>
-                      <div className="bg-black/20 p-3 rounded-lg">
-                        <div className="text-gray-500 text-xs mb-1">턱 돌출</div>
-                        <div className="font-semibold text-emerald-300">{finalResult.profile.jawProjection}mm</div>
+                    </div>
+
+                    {/* 측면 측정값 */}
+                    <div>
+                      <h4 className="text-xs text-gray-500 mb-2 font-semibold">측면 측정</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-black/20 p-3 rounded-lg">
+                          <div className="text-gray-500 text-xs mb-1">코 높이</div>
+                          <div className="font-semibold text-emerald-300">{finalResult.profile.noseHeight}mm</div>
+                        </div>
+                        <div className="bg-black/20 p-3 rounded-lg">
+                          <div className="text-gray-500 text-xs mb-1">턱 돌출</div>
+                          <div className="font-semibold text-emerald-300">{finalResult.profile.jawProjection}mm</div>
+                        </div>
                       </div>
                     </div>
                   </div>
