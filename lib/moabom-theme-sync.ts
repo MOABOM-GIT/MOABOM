@@ -187,12 +187,18 @@ export class MoabomThemeSync {
    */
   private init(): void {
     // 1. URL 파라미터에서 초기 테마 로드
-    this.loadFromURL();
+    const hasUrlTheme = this.loadFromURL();
 
-    // 2. PostMessage 리스너 등록
+    // 2. URL에 테마가 없으면 모아봄 껍데기의 현재 테마 가져오기
+    if (!hasUrlTheme) {
+      const parentTheme = this.getParentThemeFromStorage();
+      this.applyTheme(parentTheme);
+    }
+
+    // 3. PostMessage 리스너 등록
     this.setupMessageListener();
 
-    // 3. 부모 창에 현재 테마 요청 (iframe인 경우에만)
+    // 4. 부모 창에 현재 테마 요청 (iframe인 경우에만)
     if (typeof window !== 'undefined' && window.parent !== window) {
       this.requestThemeFromParent();
     }
@@ -203,22 +209,61 @@ export class MoabomThemeSync {
   /**
    * URL 파라미터에서 테마 정보 추출
    * 예: ?theme=dark&primary=FF5733
+   * @returns URL에서 테마를 찾았는지 여부
    */
-  private loadFromURL(): void {
-    if (typeof window === 'undefined') return;
+  private loadFromURL(): boolean {
+    if (typeof window === 'undefined') return false;
 
     const params = new URLSearchParams(window.location.search);
     const theme = params.get('theme') as MoabomTheme | null;
     const primary = params.get('primary');
 
+    let hasTheme = false;
+
     if (theme && this.isValidTheme(theme)) {
       this.applyTheme(theme);
+      hasTheme = true;
     }
 
     if (primary) {
       const color = primary.startsWith('#') ? primary : `#${primary}`;
       this.applyColor(color);
     }
+
+    return hasTheme;
+  }
+
+  /**
+   * 모아봄 껍데기의 localStorage에서 현재 테마 가져오기
+   * @returns 모아봄 껍데기의 현재 테마 (없으면 'light' 기본값)
+   */
+  private getParentThemeFromStorage(): MoabomTheme {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return 'light';
+    }
+
+    try {
+      const configRaw = localStorage.getItem('moabom_config');
+      if (!configRaw) return 'light';
+
+      const config = JSON.parse(configRaw);
+      const theme = config.theme;
+
+      if (theme && this.isValidTheme(theme)) {
+        this.log('Loaded theme from parent storage:', theme);
+        
+        // 포인트 컬러도 함께 가져오기
+        if (config.pointColor) {
+          this.applyColor(config.pointColor);
+        }
+        
+        return theme;
+      }
+    } catch (e) {
+      this.log('Failed to load theme from storage:', e);
+    }
+
+    return 'light';
   }
 
   /**
