@@ -145,12 +145,10 @@ export default function Home() {
     try {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-
-      // Canvas Context 가져오기 (매 프레임마다 확인)
       const ctx = canvas.getContext('2d');
 
       // 비디오가 완전히 준비될 때까지 대기 (readyState 4 = HAVE_ENOUGH_DATA)
-      if (!ctx || video.readyState !== 4) {
+      if (!ctx || video.readyState !== 4 || video.videoWidth === 0 || video.videoHeight === 0) {
         animationFrameRef.current = requestAnimationFrame(detectFace);
         return;
       }
@@ -190,7 +188,6 @@ export default function Home() {
           setSubStatus("얼굴을 찾을 수 없습니다");
           stableFramesRef.current = 0;
         } else if (currentStep === 'SCANNING_FRONT' || currentStep === 'SCANNING_PROFILE') {
-          // 스캔 중 얼굴을 못 찾으면 버퍼 클리어
           setSubStatus("얼굴을 다시 찾아주세요");
           stableFramesRef.current = 0;
         }
@@ -200,8 +197,6 @@ export default function Home() {
       const currentStep = stepRef.current;
       if (currentStep !== 'COMPLETE' && currentStep !== 'IDLE') {
         animationFrameRef.current = requestAnimationFrame(detectFace);
-      } else if (currentStep === 'COMPLETE') {
-        animationFrameRef.current = null;
       }
     } catch (e) {
       console.error("Detection Loop Error:", e);
@@ -211,10 +206,10 @@ export default function Home() {
           if (stepRef.current !== 'COMPLETE' && stepRef.current !== 'IDLE') {
             animationFrameRef.current = requestAnimationFrame(detectFace);
           }
-        }, 1000);
+        }, 100);
       }
     }
-  }, [faceLandmarker]); // 의존성을 최소화 (Refs 사용)
+  }, [faceLandmarker]);
 
   // 단계별 처리 로직
   const processStep = (currentStep: MeasurementStep, measurements: FaceMeasurements, yaw: number, landmarks: any[]) => {
@@ -407,6 +402,12 @@ export default function Home() {
       return;
     }
 
+    // 이전 실행이 남아있을 수 있으므로 먼저 정리
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
     setCameraStarting(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -420,25 +421,45 @@ export default function Home() {
       if (videoRef.current) {
         const video = videoRef.current;
         video.srcObject = stream;
-        video.onloadedmetadata = async () => {
-          try {
-            await video.play();
-            setCameraStarting(false);
-            setStep('GUIDE_CHECK');
-            setStatus("카메라를 정면으로 봐주세요");
-            lastTimestampRef.current = 0; // 타임스탬프 초기화
-            requestAnimationFrame(detectFace);
-          } catch (playErr) {
-            console.error("Video play failed:", playErr);
-            setCameraStarting(false);
-            setStatus("영상 재생을 허용해 주세요");
-          }
-        };
+        
+        // 비디오 메타데이터 로드 대기
+        await new Promise<void>((resolve, reject) => {
+          video.onloadedmetadata = () => resolve();
+          video.onerror = () => reject(new Error("Video load failed"));
+          setTimeout(() => reject(new Error("Video load timeout")), 5000);
+        });
+
+        // 비디오 재생 시작
+        await video.play();
+        
+        // 비디오가 실제로 재생 중인지 확인
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+          setCameraStarting(false);
+          setStep('GUIDE_CHECK');
+          stepRef.current = 'GUIDE_CHECK';
+          setStatus("카메라를 정면으로 봐주세요");
+          lastTimestampRef.current = 0;
+          
+          // 감지 루프 시작
+          requestAnimationFrame(detectFace);
+        } else {
+          throw new Error("Video not ready");
+        }
       }
     } catch (err: any) {
       console.error("카메라 에러:", err);
       setCameraStarting(false);
-      setStatus("카메라 권한이 필요합니다");
+      
+      // 실패 시 스트림 정리
+      if (videoRef.current?.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
+      
+      setStatus(err.name === 'NotAllowedError' ? "카메라 권한이 필요합니다" : "카메라 연결 실패");
     }
   };
 
@@ -473,13 +494,25 @@ export default function Home() {
   };
 
   const handleRetry = () => {
+    // 완전 초기화
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    
     setStep('IDLE');
+    stepRef.current = 'IDLE';
     setFinalResult(null);
     setScanProgress(0);
     frontBufferRef.current = [];
     profileBufferRef.current = [];
     stableFramesRef.current = 0;
-    startCamera();
+    lastTimestampRef.current = 0;
+    
+    // 약간의 지연 후 재시작
+    setTimeout(() => {
+      startCamera();
+    }, 100);
   };
 
   return (
