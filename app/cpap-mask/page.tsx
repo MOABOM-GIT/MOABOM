@@ -555,7 +555,7 @@ export default function Home() {
         />
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full pointer-events-none"
+          className={`absolute inset-0 w-full h-full pointer-events-none ${step === 'COMPLETE' ? 'hidden' : ''}`}
           style={{ transform: 'scaleX(-1)' }}
         />
 
@@ -707,7 +707,7 @@ export default function Home() {
                 <p className="text-xs text-moa-text-tertiary mb-3">관심있는 타입을 모두 선택하세요</p>
                 <div className="space-y-2">
                   {[
-                    { type: 'nasal' as const, label: '나잘 (코만 덮음)', desc: '청장년층에 적합', icon: 'ri-nose-line' },
+                    { type: 'nasal' as const, label: '나잘 (코만 덮음)', desc: '청장년층에 적합', icon: 'ri-lungs-line' },
                     { type: 'pillow' as const, label: '필로우 (콧구멍만)', desc: '가볍고 편안함, 저압력용', icon: 'ri-contrast-drop-line' },
                     { type: 'full' as const, label: '풀페이스 (코+입)', desc: '구강호흡자, 중노년층', icon: 'ri-user-smile-line' }
                   ].map(({ type, label, desc, icon }) => (
@@ -829,7 +829,7 @@ export default function Home() {
         {step !== 'IDLE' && step !== 'SURVEY' && step !== 'COMPLETE' && (
           <div className="absolute inset-0 pointer-events-none pt-20">
             {/* 상단 메시지 바 */}
-            <div className="absolute top-20 left-0 right-0 p-8 pt-8 glass-panel text-center z-10">
+            <div className="absolute top-20 left-0 right-0 p-8 pt-8 text-center z-10">
               <h2 className="text-xl font-bold text-moa-text drop-shadow-md">{status}</h2>
               <p className="text-sm text-moa-main mt-1 animate-pulse font-medium">{subStatus}</p>
             </div>
