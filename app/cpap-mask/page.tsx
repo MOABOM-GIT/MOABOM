@@ -475,19 +475,15 @@ export default function Home() {
       animationFrameRef.current = null;
     }
     
-    setStep('IDLE');
-    stepRef.current = 'IDLE';
+    // 설문으로 돌아가기
+    setStep('SURVEY');
+    stepRef.current = 'SURVEY';
     setFinalResult(null);
     setRecommendation(null);
     setScanProgress(0);
     measurementSessionRef.current.reset();
     stableFramesRef.current = 0;
     lastTimestampRef.current = 0;
-    
-    // 약간의 지연 후 재시작
-    setTimeout(() => {
-      startCamera();
-    }, 100);
   };
 
   // 현재 단계 계산 (프로그레스 바용)
@@ -563,13 +559,16 @@ export default function Home() {
 
         {/* 0. 설문 화면 */}
         {step === 'SURVEY' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-start pt-20 p-6 bg-gradient-to-b from-gray-800 to-black overflow-y-auto">
-            <h1 className="text-2xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-              SmartCare AI
-            </h1>
-            <p className="text-gray-400 mb-6 text-center text-sm">
-              정확한 마스크 추천을 위해 몇 가지 질문에 답해주세요
-            </p>
+          <div className="absolute inset-0 flex flex-col bg-gradient-to-b from-gray-800 to-black">
+            {/* 스크롤 가능한 컨텐츠 영역 */}
+            <div className="flex-1 overflow-y-auto pt-24 pb-6 px-6">
+              <div className="flex flex-col items-center">
+                <h1 className="text-2xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+                  SmartCare AI
+                </h1>
+                <p className="text-gray-400 mb-6 text-center text-sm">
+                  정확한 마스크 추천을 위해 몇 가지 질문에 답해주세요
+                </p>
 
             <div className="w-full max-w-md space-y-6">
               {/* 성별 */}
@@ -738,12 +737,16 @@ export default function Home() {
                 다음: 얼굴 측정 →
               </button>
             </div>
+              </div>
+            </div>
           </div>
         )}
 
         {/* 1. IDLE 상태 */}
         {step === 'IDLE' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center pt-20 p-6 bg-gradient-to-b from-gray-800 to-black overflow-y-auto">
+          <div className="absolute inset-0 flex flex-col bg-gradient-to-b from-gray-800 to-black">
+            {/* 스크롤 가능한 컨텐츠 영역 */}
+            <div className="flex-1 overflow-y-auto pt-24 pb-6 px-6 flex flex-col items-center justify-center">
             <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
               SmartCare AI
             </h1>
@@ -774,6 +777,7 @@ export default function Home() {
                 최근 측정: {latestMeasurement.recommended_size} 사이즈 ({new Date(latestMeasurement.created_at!).toLocaleDateString()})
               </div>
             )}
+            </div>
           </div>
         )}
 
@@ -874,8 +878,10 @@ export default function Home() {
 
         {/* 5. 완료 결과 화면 */}
         {step === 'COMPLETE' && finalResult && recommendation && (
-          <div className="absolute inset-0 bg-gray-900 flex flex-col z-30 animate-in fade-in slide-in-from-bottom-10 duration-500 overflow-y-auto pt-20">
-            <div className="flex-1 flex flex-col items-center p-6 pt-6 pb-24 min-h-0">
+          <div className="absolute inset-0 bg-gray-900 flex flex-col z-30 animate-in fade-in slide-in-from-bottom-10 duration-500">
+            {/* 스크롤 가능한 컨텐츠 영역 */}
+            <div className="flex-1 overflow-y-auto pt-24 pb-32 px-6">
+              <div className="flex flex-col items-center">
               <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6 flex-shrink-0">
                 <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
               </div>
@@ -1017,7 +1023,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-6 w-full max-w-md flex-shrink-0 mb-8">
+              <div className="flex gap-3 mt-6 w-full max-w-md flex-shrink-0">
                 <button
                   onClick={handleRetry}
                   className="flex-1 py-4 rounded-xl bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors"
@@ -1030,6 +1036,7 @@ export default function Home() {
                 >
                   결과 저장하기
                 </button>
+              </div>
               </div>
             </div>
           </div>
