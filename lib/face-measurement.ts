@@ -70,12 +70,17 @@ export function calculateDistance(
 }
 
 /**
- * IPD (눈동자 간 거리) 계산 - 픽셀 단위
+ * IPD (눈동자 간 거리) 계산 - 정규화된 좌표를 픽셀로 변환
  */
-export function calculateIPDPixels(landmarks: any[]): number {
+export function calculateIPDPixels(landmarks: any[], width: number, height: number): number {
   const leftEye = landmarks[LANDMARKS.LEFT_EYE_INNER];
   const rightEye = landmarks[LANDMARKS.RIGHT_EYE_INNER];
-  return calculateDistance(leftEye, rightEye);
+  
+  // 정규화된 좌표(0~1)를 실제 픽셀로 변환
+  const leftPixel = { x: leftEye.x * width, y: leftEye.y * height };
+  const rightPixel = { x: rightEye.x * width, y: rightEye.y * height };
+  
+  return calculateDistance(leftPixel, rightPixel);
 }
 
 /**
@@ -86,22 +91,30 @@ export function calculateScaleFactor(ipdPixels: number): number {
 }
 
 /**
- * 코 너비 측정 (mm)
+ * 코 너비 측정 (mm) - 정규화된 좌표를 픽셀로 변환
  */
-export function measureNoseWidth(landmarks: any[], scaleFactor: number): number {
+export function measureNoseWidth(landmarks: any[], scaleFactor: number, width: number, height: number): number {
   const noseLeft = landmarks[LANDMARKS.NOSE_LEFT];
   const noseRight = landmarks[LANDMARKS.NOSE_RIGHT];
-  const widthPixels = calculateDistance(noseLeft, noseRight);
+  
+  const leftPixel = { x: noseLeft.x * width, y: noseLeft.y * height };
+  const rightPixel = { x: noseRight.x * width, y: noseRight.y * height };
+  
+  const widthPixels = calculateDistance(leftPixel, rightPixel);
   return widthPixels * scaleFactor;
 }
 
 /**
- * 얼굴 길이 측정 (mm)
+ * 얼굴 길이 측정 (mm) - 정규화된 좌표를 픽셀로 변환
  */
-export function measureFaceLength(landmarks: any[], scaleFactor: number): number {
+export function measureFaceLength(landmarks: any[], scaleFactor: number, width: number, height: number): number {
   const faceTop = landmarks[LANDMARKS.FACE_TOP];
   const chin = landmarks[LANDMARKS.CHIN];
-  const lengthPixels = calculateDistance(faceTop, chin);
+  
+  const topPixel = { x: faceTop.x * width, y: faceTop.y * height };
+  const chinPixel = { x: chin.x * width, y: chin.y * height };
+  
+  const lengthPixels = calculateDistance(topPixel, chinPixel);
   return lengthPixels * scaleFactor;
 }
 
@@ -149,22 +162,22 @@ export interface FaceMeasurements {
   confidence: number;
 }
 
-export function performMeasurement(result: FaceLandmarkerResult): FaceMeasurements | null {
+export function performMeasurement(result: FaceLandmarkerResult, width: number, height: number): FaceMeasurements | null {
   if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
     return null;
   }
 
   const landmarks = result.faceLandmarks[0];
 
-  // 1. IPD 계산 (기준점)
-  const ipdPixels = calculateIPDPixels(landmarks);
+  // 1. IPD 계산 (기준점) - 실제 픽셀 거리
+  const ipdPixels = calculateIPDPixels(landmarks, width, height);
 
   // 2. 스케일 팩터 계산
   const scaleFactor = calculateScaleFactor(ipdPixels);
 
   // 3. 각 부위 측정
-  const noseWidth = measureNoseWidth(landmarks, scaleFactor);
-  const faceLength = measureFaceLength(landmarks, scaleFactor);
+  const noseWidth = measureNoseWidth(landmarks, scaleFactor, width, height);
+  const faceLength = measureFaceLength(landmarks, scaleFactor, width, height);
   const chinAngle = measureChinAngle(landmarks);
 
   return {

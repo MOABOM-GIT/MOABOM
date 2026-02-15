@@ -446,9 +446,9 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-black font-sans text-white overflow-hidden">
-      {/* 메인 뷰포트 - PC에서는 16:9 비율, 모바일에서는 전체 화면 */}
-      <div className="relative w-full h-screen md:max-w-4xl md:aspect-video md:h-auto mx-auto bg-gray-900 shadow-2xl overflow-hidden">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-black font-sans text-white">
+      {/* 메인 뷰포트 - 가로 꽉 채우고 16:9 비율 유지 */}
+      <div className="relative w-full aspect-video bg-gray-900 shadow-2xl overflow-hidden">
         {/* 카메라 비디오 */}
         <video
           ref={videoRef}
@@ -564,16 +564,16 @@ export default function Home() {
 
         {/* 5. 완료 결과 화면 */}
         {step === 'COMPLETE' && finalResult && (
-          <div className="absolute inset-0 bg-gray-900 flex flex-col p-6 z-30 animate-in fade-in slide-in-from-bottom-10 duration-500">
-            <div className="flex-1 flex flex-col items-center pt-10">
-              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6">
+          <div className="absolute inset-0 bg-gray-900 flex flex-col z-30 animate-in fade-in slide-in-from-bottom-10 duration-500 overflow-y-auto">
+            <div className="flex-1 flex flex-col items-center p-6 pt-10 min-h-0">
+              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6 flex-shrink-0">
                 <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
               </div>
 
-              <h2 className="text-2xl font-bold text-white mb-1">측정 완료</h2>
-              <p className="text-gray-400 text-sm mb-8">AI 분석 결과가 준비되었습니다.</p>
+              <h2 className="text-2xl font-bold text-white mb-1 flex-shrink-0">측정 완료</h2>
+              <p className="text-gray-400 text-sm mb-8 flex-shrink-0">AI 분석 결과가 준비되었습니다.</p>
 
-              <div className="w-full bg-gray-800 rounded-2xl p-6 border border-gray-700 space-y-4">
+              <div className="w-full max-w-md bg-gray-800 rounded-2xl p-6 border border-gray-700 space-y-4 flex-shrink-0">
                 <div className="flex justify-between items-center pb-4 border-b border-gray-700">
                   <span className="text-gray-400">추천 사이즈</span>
                   <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
@@ -600,21 +600,21 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleRetry}
-                className="flex-1 py-4 rounded-xl bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors"
-              >
-                재측정
-              </button>
-              <button
-                onClick={handleSave}
-                className="flex-[2] py-4 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white shadow-lg transition-all active:scale-95"
-              >
-                결과 저장하기
-              </button>
+              <div className="flex gap-3 mt-6 w-full max-w-md flex-shrink-0">
+                <button
+                  onClick={handleRetry}
+                  className="flex-1 py-4 rounded-xl bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors"
+                >
+                  재측정
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="flex-[2] py-4 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white shadow-lg transition-all active:scale-95"
+                >
+                  결과 저장하기
+                </button>
+              </div>
             </div>
           </div>
         )}
