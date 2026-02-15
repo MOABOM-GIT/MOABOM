@@ -478,6 +478,7 @@ export default function Home() {
     setStep('IDLE');
     stepRef.current = 'IDLE';
     setFinalResult(null);
+    setRecommendation(null);
     setScanProgress(0);
     measurementSessionRef.current.reset();
     stableFramesRef.current = 0;
@@ -489,10 +490,60 @@ export default function Home() {
     }, 100);
   };
 
+  // 현재 단계 계산 (프로그레스 바용)
+  const getCurrentPhase = (): 1 | 2 | 3 => {
+    if (step === 'SURVEY') return 1;
+    if (step === 'COMPLETE') return 3;
+    return 2; // IDLE, GUIDE_CHECK, COUNTDOWN, SCANNING_FRONT, GUIDE_TURN_SIDE, SCANNING_PROFILE
+  };
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-black font-sans text-white">
       {/* 메인 뷰포트 - 모바일: 전체화면, PC: 비율 유지 */}
-      <div className="relative w-full h-screen md:h-auto md:max-h-screen md:aspect-video bg-gray-900 flex items-center justify-center overflow-hidden">
+      <div className="relative w-full h-screen md:h-auto md:max-h-screen md:aspect-video bg-gray-900 flex flex-col items-center justify-center overflow-hidden">
+        
+        {/* 상단 프로그레스 탭 */}
+        <div className="absolute top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm border-b border-gray-700">
+          <div className="flex items-center justify-center px-4 py-3">
+            {[
+              { phase: 1, label: '설문', icon: '📋' },
+              { phase: 2, label: '안면분석', icon: '📸' },
+              { phase: 3, label: '결과', icon: '✓' }
+            ].map(({ phase, label, icon }, idx) => {
+              const currentPhase = getCurrentPhase();
+              const isActive = currentPhase === phase;
+              const isCompleted = currentPhase > phase;
+              
+              return (
+                <div key={phase} className="flex items-center">
+                  <div className="flex flex-col items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition-all ${
+                      isCompleted 
+                        ? 'bg-green-600 text-white' 
+                        : isActive 
+                          ? 'bg-blue-600 text-white ring-4 ring-blue-600/30' 
+                          : 'bg-gray-700 text-gray-400'
+                    }`}>
+                      {isCompleted ? '✓' : icon}
+                    </div>
+                    <span className={`text-xs mt-1 font-medium ${
+                      isActive ? 'text-blue-400' : isCompleted ? 'text-green-400' : 'text-gray-500'
+                    }`}>
+                      {label}
+                    </span>
+                  </div>
+                  
+                  {idx < 2 && (
+                    <div className={`w-12 h-0.5 mx-2 mb-5 transition-all ${
+                      isCompleted ? 'bg-green-600' : 'bg-gray-700'
+                    }`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* 카메라 비디오 */}
         <video
           ref={videoRef}
@@ -512,8 +563,8 @@ export default function Home() {
 
         {/* 0. 설문 화면 */}
         {step === 'SURVEY' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-start p-6 bg-gradient-to-b from-gray-800 to-black overflow-y-auto">
-            <h1 className="text-2xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 mt-6">
+          <div className="absolute inset-0 flex flex-col items-center justify-start pt-20 p-6 bg-gradient-to-b from-gray-800 to-black overflow-y-auto">
+            <h1 className="text-2xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
               SmartCare AI
             </h1>
             <p className="text-gray-400 mb-6 text-center text-sm">
@@ -692,7 +743,7 @@ export default function Home() {
 
         {/* 1. IDLE 상태 */}
         {step === 'IDLE' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-800 to-black overflow-y-auto">
+          <div className="absolute inset-0 flex flex-col items-center justify-center pt-20 p-6 bg-gradient-to-b from-gray-800 to-black overflow-y-auto">
             <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
               SmartCare AI
             </h1>
@@ -727,10 +778,10 @@ export default function Home() {
         )}
 
         {/* 2. 가이드 오버레이 (공통) */}
-        {step !== 'IDLE' && step !== 'COMPLETE' && (
-          <div className="absolute inset-0 pointer-events-none">
+        {step !== 'IDLE' && step !== 'SURVEY' && step !== 'COMPLETE' && (
+          <div className="absolute inset-0 pointer-events-none pt-20">
             {/* 상단 메시지 바 */}
-            <div className="absolute top-0 left-0 right-0 p-8 pt-12 bg-gradient-to-b from-black/80 to-transparent text-center z-10">
+            <div className="absolute top-20 left-0 right-0 p-8 pt-8 bg-gradient-to-b from-black/80 to-transparent text-center z-10">
               <h2 className="text-xl font-bold text-white drop-shadow-md">{status}</h2>
               <p className="text-sm text-cyan-300 mt-1 animate-pulse font-medium">{subStatus}</p>
             </div>
@@ -823,8 +874,8 @@ export default function Home() {
 
         {/* 5. 완료 결과 화면 */}
         {step === 'COMPLETE' && finalResult && recommendation && (
-          <div className="absolute inset-0 bg-gray-900 flex flex-col z-30 animate-in fade-in slide-in-from-bottom-10 duration-500 overflow-y-auto">
-            <div className="flex-1 flex flex-col items-center p-6 pt-10 min-h-0">
+          <div className="absolute inset-0 bg-gray-900 flex flex-col z-30 animate-in fade-in slide-in-from-bottom-10 duration-500 overflow-y-auto pt-20">
+            <div className="flex-1 flex flex-col items-center p-6 pt-6 pb-24 min-h-0">
               <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6 flex-shrink-0">
                 <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
               </div>
@@ -966,7 +1017,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-6 w-full max-w-md flex-shrink-0">
+              <div className="flex gap-3 mt-6 w-full max-w-md flex-shrink-0 mb-8">
                 <button
                   onClick={handleRetry}
                   className="flex-1 py-4 rounded-xl bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors"
