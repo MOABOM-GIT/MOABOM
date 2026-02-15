@@ -503,7 +503,7 @@ export default function Home() {
       <div className="relative w-full h-screen md:h-auto md:max-h-screen md:aspect-video bg-gray-900 flex flex-col items-center justify-center overflow-hidden">
         
         {/* 상단 프로그레스 탭 */}
-        <div className="absolute top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm border-b border-gray-700">
+        <div className="absolute top-0 left-0 right-0 z-50 glass-panel border-b border-moa-bg-secondary">
           <div className="flex items-center justify-center px-4 py-3">
             {[
               { phase: 1, label: '설문', icon: 'ri-survey-line' },
@@ -519,15 +519,15 @@ export default function Home() {
                   <div className="flex flex-col items-center">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition-all ${
                       isCompleted 
-                        ? 'bg-green-600 text-white' 
+                        ? 'bg-moa-main text-white' 
                         : isActive 
                           ? 'bg-moa-main text-white ring-4 ring-moa-main-light' 
-                          : 'bg-gray-700 text-gray-400'
+                          : 'bg-moa-bg-secondary text-moa-text-tertiary'
                     }`}>
                       <i className={isCompleted ? 'ri-check-line' : icon}></i>
                     </div>
                     <span className={`text-xs mt-1 font-medium ${
-                      isActive ? 'text-moa-main' : isCompleted ? 'text-green-400' : 'text-gray-500'
+                      isActive ? 'text-moa-main' : isCompleted ? 'text-moa-main' : 'text-moa-text-tertiary'
                     }`}>
                       {label}
                     </span>
@@ -535,7 +535,7 @@ export default function Home() {
                   
                   {idx < 2 && (
                     <div className={`w-12 h-0.5 mx-2 mb-5 transition-all ${
-                      isCompleted ? 'bg-green-600' : 'bg-gray-700'
+                      isCompleted ? 'bg-moa-main' : 'bg-moa-bg-secondary'
                     }`} />
                   )}
                 </div>
@@ -563,11 +563,11 @@ export default function Home() {
 
         {/* 0. 설문 화면 */}
         {step === 'SURVEY' && (
-          <div className="absolute inset-0 flex flex-col bg-gradient-to-b from-gray-800 to-black">
+          <div className="absolute inset-0 flex flex-col">
             {/* 스크롤 가능한 컨텐츠 영역 */}
             <div className="flex-1 overflow-y-auto pt-24 pb-6 px-6">
               <div className="flex flex-col items-center">
-                <h1 className="text-2xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-moa-main to-emerald-400">
+                <h1 className="text-2xl font-bold mb-2 text-moa-main">
                   SmartCare AI
                 </h1>
                 <p className="text-moa-text-secondary mb-6 text-center text-sm">
@@ -586,7 +586,7 @@ export default function Home() {
                     className={`flex-1 py-3 rounded-lg font-medium transition-all ${
                       userProfile.gender === 'male' 
                         ? 'bg-moa-main text-white' 
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-moa-bg-secondary text-moa-text-secondary hover:bg-moa-bg-tertiary'
                     }`}
                   >
                     남성
@@ -596,7 +596,7 @@ export default function Home() {
                     className={`flex-1 py-3 rounded-lg font-medium transition-all ${
                       userProfile.gender === 'female' 
                         ? 'bg-moa-main text-white' 
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-moa-bg-secondary text-moa-text-secondary hover:bg-moa-bg-tertiary'
                     }`}
                   >
                     여성
@@ -617,7 +617,7 @@ export default function Home() {
                       className={`py-2 rounded-lg text-sm font-medium transition-all ${
                         userProfile.ageGroup === age 
                           ? 'bg-moa-main text-white' 
-                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          : 'bg-moa-bg-secondary text-moa-text-secondary hover:bg-moa-bg-tertiary'
                       }`}
                     >
                       {age === '60+' ? '60대+' : age.replace('s', '대')}
@@ -639,7 +639,7 @@ export default function Home() {
                       className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all ${
                         userProfile.tossing === level 
                           ? 'bg-moa-main text-white' 
-                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          : 'bg-moa-bg-secondary text-moa-text-secondary hover:bg-moa-bg-tertiary'
                       }`}
                     >
                       {level === 'low' ? '적음' : level === 'medium' ? '보통' : '많음'}
@@ -659,7 +659,7 @@ export default function Home() {
                     className={`flex-1 py-3 rounded-lg font-medium transition-all ${
                       userProfile.mouthBreathing 
                         ? 'bg-moa-main text-white' 
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-moa-bg-secondary text-moa-text-secondary hover:bg-moa-bg-tertiary'
                     }`}
                   >
                     예
@@ -669,7 +669,7 @@ export default function Home() {
                     className={`flex-1 py-3 rounded-lg font-medium transition-all ${
                       !userProfile.mouthBreathing 
                         ? 'bg-moa-main text-white' 
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-moa-bg-secondary text-moa-text-secondary hover:bg-moa-bg-tertiary'
                     }`}
                   >
                     아니오
@@ -690,7 +690,7 @@ export default function Home() {
                       className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all ${
                         userProfile.pressure === level 
                           ? 'bg-moa-main text-white' 
-                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          : 'bg-moa-bg-secondary text-moa-text-secondary hover:bg-moa-bg-tertiary'
                       }`}
                     >
                       {level === 'low' ? '10 이하' : level === 'medium' ? '10-15' : '15 이상'}
@@ -723,7 +723,7 @@ export default function Home() {
                       className={`w-full p-3 rounded-lg text-left transition-all ${
                         userProfile.preferredTypes.includes(type)
                           ? 'bg-moa-main text-white border-2 border-moa-main-light' 
-                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600 border-2 border-transparent'
+                          : 'bg-moa-bg-secondary text-moa-text-secondary hover:bg-moa-bg-tertiary border-2 border-transparent'
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -749,7 +749,7 @@ export default function Home() {
                   setStep('IDLE');
                   setStatus('준비 완료');
                 }}
-                className="w-full py-4 rounded-xl bg-gradient-to-r from-moa-main to-emerald-600 hover:opacity-90 font-bold text-white shadow-moa-color-1 transition-all active:scale-95 flex items-center justify-center gap-2"
+                className="w-full py-4 rounded-xl bg-moa-main hover:opacity-90 font-bold text-white shadow-moa-color-1 transition-all active:scale-95 flex items-center justify-center gap-2"
               >
                 다음: 얼굴 측정 <i className="ri-arrow-right-line"></i>
               </button>
@@ -761,10 +761,10 @@ export default function Home() {
 
         {/* 1. IDLE 상태 */}
         {step === 'IDLE' && (
-          <div className="absolute inset-0 flex flex-col bg-gradient-to-b from-gray-800 to-black">
+          <div className="absolute inset-0 flex flex-col">
             {/* 스크롤 가능한 컨텐츠 영역 */}
             <div className="flex-1 overflow-y-auto pt-24 pb-6 px-6 flex flex-col items-center justify-center">
-            <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-moa-main to-emerald-400">
+            <h1 className="text-3xl font-bold mb-2 text-moa-main">
               SmartCare AI
             </h1>
             <p className="text-moa-text-secondary mb-8 text-center max-w-xs">
@@ -794,7 +794,7 @@ export default function Home() {
               <button
                 onClick={startCamera}
                 disabled={!user || !faceLandmarker || cameraStarting}
-                className="w-full py-4 rounded-xl bg-moa-main hover:opacity-90 disabled:bg-gray-700 disabled:text-gray-500 font-bold transition-all active:scale-95 shadow-moa-color-1 flex items-center justify-center gap-2"
+                className="w-full py-4 rounded-xl bg-moa-main hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-bold transition-all active:scale-95 shadow-moa-color-1 flex items-center justify-center gap-2"
               >
                 {cameraStarting ? (
                   <>
@@ -829,9 +829,9 @@ export default function Home() {
         {step !== 'IDLE' && step !== 'SURVEY' && step !== 'COMPLETE' && (
           <div className="absolute inset-0 pointer-events-none pt-20">
             {/* 상단 메시지 바 */}
-            <div className="absolute top-20 left-0 right-0 p-8 pt-8 bg-gradient-to-b from-black/80 to-transparent text-center z-10">
-              <h2 className="text-xl font-bold text-white drop-shadow-md">{status}</h2>
-              <p className="text-sm text-cyan-300 mt-1 animate-pulse font-medium">{subStatus}</p>
+            <div className="absolute top-20 left-0 right-0 p-8 pt-8 glass-panel text-center z-10">
+              <h2 className="text-xl font-bold text-moa-text drop-shadow-md">{status}</h2>
+              <p className="text-sm text-moa-main mt-1 animate-pulse font-medium">{subStatus}</p>
             </div>
 
             {/* 측면 회전 가이드 - 좌우로 스무스한 화살표 애니메이션 */}
@@ -840,14 +840,14 @@ export default function Home() {
                 <div className="flex items-center gap-8">
                   {/* 왼쪽 화살표 - 왼쪽으로 이동 */}
                   <i 
-                    className="ri-arrow-left-s-line text-6xl text-cyan-400" 
+                    className="ri-arrow-left-s-line text-6xl text-moa-main" 
                     style={{ 
                       animation: 'slideLeft 2s ease-in-out infinite',
                       filter: 'drop-shadow(0 0 8px rgba(34, 211, 238, 0.6))'
                     }}
                   ></i>
                   
-                  <div className="text-cyan-400 font-bold text-xl opacity-80">또는</div>
+                  <div className="text-moa-main font-bold text-xl opacity-80">또는</div>
                   
                   {/* 오른쪽 화살표 - 오른쪽으로 이동 */}
                   <i 
@@ -902,7 +902,7 @@ export default function Home() {
         {/* 4. 스캔 프로그레스 */}
         {(step === 'SCANNING_FRONT' || step === 'SCANNING_PROFILE') && (
           <div className="absolute bottom-10 left-10 right-10 z-20">
-            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div className="h-2 bg-moa-bg-secondary rounded-full overflow-hidden">
               <div
                 className="h-full bg-cyan-500 transition-all duration-200"
                 style={{ width: `${scanProgress}%` }}
@@ -913,12 +913,12 @@ export default function Home() {
 
         {/* 5. 완료 결과 화면 */}
         {step === 'COMPLETE' && finalResult && recommendation && (
-          <div className="absolute inset-0 bg-gray-900 flex flex-col z-30 animate-in fade-in slide-in-from-bottom-10 duration-500">
+          <div className="absolute inset-0 flex flex-col z-30 animate-in fade-in slide-in-from-bottom-10 duration-500">
             {/* 스크롤 가능한 컨텐츠 영역 */}
             <div className="flex-1 overflow-y-auto pt-24 pb-32 px-6">
               <div className="flex flex-col items-center">
-              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6 flex-shrink-0">
-                <i className="ri-check-line text-4xl text-green-500"></i>
+              <div className="w-20 h-20 bg-moa-main/20 rounded-full flex items-center justify-center mb-6 flex-shrink-0">
+                <i className="ri-check-line text-4xl text-moa-main"></i>
               </div>
 
               <h2 className="text-2xl font-bold text-moa-text mb-1 flex-shrink-0">측정 완료</h2>
@@ -927,12 +927,12 @@ export default function Home() {
               <div className="w-full max-w-md space-y-4 flex-shrink-0">
                 {/* 추천 사이즈 */}
                 <div className="glass-panel p-6">
-                  <div className="flex justify-between items-center pb-4 border-b border-gray-700">
+                  <div className="flex justify-between items-center pb-4 border-b border-moa-bg-secondary">
                     <span className="text-moa-text-secondary flex items-center gap-2">
                       <i className="ri-ruler-line"></i>
                       추천 사이즈
                     </span>
-                    <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-moa-main">
+                    <span className="text-3xl font-bold text-moa-main">
                       {recommendation.size}
                     </span>
                   </div>
